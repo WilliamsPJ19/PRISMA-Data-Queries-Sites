@@ -236,6 +236,9 @@ format `x' %d
 } 
 
 ** Check ranges **
+foreach var of varlist KNOWN_LMP_SCORRES{
+list SCRNID `var' if (`var' != 1 & `var'!=0 & `var'!=.), abbreviate(25)
+}
 list SCRNID GA_LMP_WEEKS_SCORRES if ((GA_LMP_WEEKS_SCORRES<2 | GA_LMP_WEEKS_SCORRES>42) & GA_LMP_WEEKS_SCORRES!=.), abbreviate(25)
 list SCRNID GA_LMP_DAYS_SCORRES if ((GA_LMP_DAYS_SCORRES<0 | GA_LMP_DAYS_SCORRES>6) & GA_LMP_DAYS_SCORRES!=.), abbreviate(25)
 
@@ -289,16 +292,16 @@ list SCRNID PREVIA_PERES_* if (PREVIA_PERES_*!=1 & PREVIA_PERES_*!=2 & PREVIA_PE
 foreach var of varlist CRL_PERES_01_* CRL_PERES_02_* CRL_PERES_MEAN_*{
 	list SCRNID `var' if ((`var'<5 & `var'>100) | `var'!=.), abbreviate(25)
 }
-foreach var of varlist BPD_PERES_01_* BPD_PERES_02_* BPD_PERES_MEAN_*{
+foreach var of varlist BPD_PERES_01_* BPD_PERED_01_* BPD_PERES_02_* BPD_BPD_PERED_02_* PERES_MEAN_*{
 	list SCRNID `var' if ((`var'<2 & `var'>11) | `var'!=.), abbreviate(25)
 }
-foreach var of varlist HC_PERES_01_* HC_PERES_02_* HC_PERES_MEAN_*{
+foreach var of varlist HC_PERES_01_* HC_PERED_01_* HC_PERES_02_* HC_PERED_02_* HC_PERES_MEAN_*{
 	list SCRNID `var' if ((`var'<8 & `var'>36) | `var'!=.), abbreviate(25)
 }
-foreach var of varlist AC_PERES_01_* AC_PERES_02_* AC_PERES_MEAN_*{
+foreach var of varlist AC_PERES_01_* AC_PERED_01_* AC_PERES_02_* AC_PERED_02_* AC_PERES_MEAN_*{
 	list SCRNID `var' if ((`var'<8 & `var'>41) | `var'!=.), abbreviate(25)
 }
-foreach var of varlist FL_PERES_01_* FL_PERES_02_* FL_PERES_MEAN_*{
+foreach var of varlist FL_PERES_01_* FL_PERED_01_* FL_PERES_02_* FL_PERED_02_* FL_PERES_MEAN_*{
 	list SCRNID `var' if ((`var'<5 & `var'>8) | `var'!=.), abbreviate(25)
 }
 
@@ -367,7 +370,6 @@ list SCRNID CAL_GA_DAYS_AGE_* if ((CAL_GA_DAYS_AGE_*<0 | CAL_GA_DAYS_AGE_*>6) & 
 *ANOMALY_SPFY_PEDESC_FTS1
 *COVAL_MNH01
 *FORMCOMPLID_MNH01
-
 
 
 *************************************************
