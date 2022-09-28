@@ -14,4 +14,4 @@ This repository contains all PRiSMA codes uploaded by GWU team that will be shar
      - Checks variables whose values are outside of established boundaries
        - Categorical variables have values specified by data dictionary
        - Continuous variables are within ranges specified by data dictionary
-     #### :pushpin: *includes PRiSMA1_datachecks_MNH00-06.do (including MNH00 MNH02-MNH06)*
+     #### :pushpin: *includes code for data checks for MNH00-MNH06*
