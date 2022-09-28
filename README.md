@@ -2,7 +2,7 @@
 ## Description
 This repository contains all PRiSMA codes uploaded by GWU team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 09/27 -- added PRiSMA1_datachecks_MNH00-06_v1.1_SEP272022 to reflect updated CRF*
+#### :pushpin: *Updated on 09/27 -- added PRiSMA1_datachecks_MNH00-06_v1.1_SEP272022 to reflect updated CRF (including MNH01)*
 
 ## File Structure
 **1\. `PRiSMA1_datachecks.do`** This code is developed to be run by site data managers on a **daily** basis
