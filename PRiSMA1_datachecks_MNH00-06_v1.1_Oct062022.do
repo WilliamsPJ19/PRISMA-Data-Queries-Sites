@@ -56,7 +56,7 @@ gen `var'_temp=date(`var', "DMY") // all dates should be in Day-Month-Year Forma
 format `var'_temp %d
 drop `var'
 rename `var'_temp `var'
-   }
+}
 						
 	**SCRN_OBSLOC		
 		***Converting from string to numeric -- will run even if already numeric
