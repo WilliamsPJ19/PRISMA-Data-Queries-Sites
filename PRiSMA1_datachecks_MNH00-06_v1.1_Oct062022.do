@@ -58,11 +58,11 @@ drop `var'
 rename `var'_temp `var'
 }
 						
-	**SCRN_OBSLOC		
-		***Converting from string to numeric -- will run even if already numeric
-		destring SCRN_OBSLOC, replace		
-		***Listing observations with values out of range (1,2,88)
-		list  SCRN_OBSLOC if (SCRN_OBSLOC!=1 & SCRN_OBSLOC!=2 & SCRN_OBSLOC!=88 & SCRN_OBSLOC!=.), abbreviate(25)
+**SCRN_OBSLOC		
+***Converting from string to numeric -- will run even if already numeric
+destring SCRN_OBSLOC, replace		
+***Listing observations with values out of range (1,2,88)
+list  SCRN_OBSLOC if (SCRN_OBSLOC!=1 & SCRN_OBSLOC!=2 & SCRN_OBSLOC!=88 & SCRN_OBSLOC!=.), abbreviate(25)
 			
 	**PREGNANT_IEORRES & KNOWN_DOBYN_SCORRES & SCHOOL_SCORRES & EGA_LT25_IEORRES & AGE_IEORRES
 	 *CATCHMENT_IEORRES & OTHR_IEORRES 	
