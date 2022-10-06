@@ -5,8 +5,8 @@ This repository contains all PRiSMA codes uploaded by GWU team that will be shar
 #### :pushpin: *Updated on 10/06 -- Updated PRiSMA1_datachecks_MNH00-06_v1.1_OCT062022.do* 
 
 ## File Structure
-**1\. `PRiSMA1_datachecks_MNH00-06_v1.1_SEP272022.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version: v1.1-SEP272022 
+**1\. `PRiSMA1_datachecks_MNH00-06_v1.1_OCT062022.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version: v1.1-OCT062022 
       - Updated to reflect updated MNH01 CRF 
    - input: All MNH raw data
    - timing: daily  
