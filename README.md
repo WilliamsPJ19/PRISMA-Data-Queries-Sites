@@ -2,16 +2,24 @@
 ## Description
 This repository contains all PRiSMA codes uploaded by GWU team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 10/06 -- Updated PRiSMA1_datachecks_MNH00-06_v1.1_OCT062022.do* 
+#### :pushpin: *Updated on 10/10 -- Added PRiSMA1a_daily_duplicates_checks_OCT102022.do and PRiSMA1b_core_variables_check_OCT102022.do* 
 
 ## File Structure
-**1\. `PRiSMA1_datachecks_MNH00-06_v1.1_OCT062022.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version: v1.1-OCT062022 
-      - Updated to reflect updated MNH01 CRF 
+**1a\. `PRiSMA1a_daily_duplicates_checks.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version date: OCT102022 
    - input: All MNH raw data
+   - output: excel file with all duplicate screening IDs, mom IDs, and infant IDs
    - timing: daily  
    - function: 
-     - Checks variables whose values are outside of established boundaries
-       - Categorical variables have values specified by data dictionary
-       - Continuous variables are within ranges specified by data dictionary
-     #### :pushpin: *includes code for data checks for MNH00-MNH06*
+     - Checks for duplicate IDs 
+     #### :pushpin: *includes code for all forms*
+     
+**1b\. `PRiSMA1b_core_variables_check.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version date: OCT102022 
+   - input: All MNH raw data
+   - output: log file with missing core variables 
+   - timing: daily  
+   - function: 
+     - Checks for missing core variables in the dataset 
+     #### :pushpin: *includes code for all forms*
+
