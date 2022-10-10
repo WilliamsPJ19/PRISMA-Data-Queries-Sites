@@ -9,7 +9,7 @@ cap log close 	//closes any log file that may be open due to do-file terminating
 	additional commands that I will add as we advance through the semester*/	
 
 /**CHANGE WORKING DIRECTION**/
-cd "/Users/stacieloisate/Documents/Monitoring Report "
+cd " *INSERT WORKING DIRECTORY* "
 
 /**ADD DATE (dd-mm-yyyy)**/
 global date "10-10-2022"
