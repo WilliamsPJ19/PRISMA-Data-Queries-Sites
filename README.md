@@ -2,11 +2,11 @@
 ## Description
 This repository contains all PRiSMA codes uploaded by GWU team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 10/31 -- Updated PRiSMA1a_daily_duplicates_check_OCT302022.do to include all forms*
+#### :pushpin: *Updated on 11/01 -- Updated PRiSMA1a_daily_duplicates_check_NOV012022.do to include all forms*
 
 ## File Structure
 **1a\. `PRiSMA1a_daily_duplicates_check.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version date: OCT302022 
+   - Current version date: NOV012022 
    - input: All MNH raw data
    - output: excel file with all duplicate screening IDs, mom IDs, and infant IDs
    - timing: daily  
