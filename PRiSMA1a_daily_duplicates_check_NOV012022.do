@@ -445,7 +445,7 @@ if dup_id==0 | dup_id==1 {
 /*check to make sure that all women who are enrolled in the study were screened 
   (in order for this to run properly, all duplicates must be removed) 
 
-The output of this code will be a sheet in the excel file called "Missing Enrollent". 
+The output of this code will be a sheet in the excel file called "Missing Screening". 
 These are women who have ANC forms, but who do not have screening IDs in the pre-screening form (MNH00) 
 */
 *************************************************************************************
@@ -481,7 +481,7 @@ merge 1:1 SCRNID using "mnh00.dta"
  // export to excel 
 keep if _merge==1 // if a momid is in all other forms BUT enrollment, then _merge will be 1 
 keep SCRNID MOMID PREGID 
-export excel using "output/daily_duplicate_check_$date.xlsx", sheet("Missing Enrollment", replace) ///
+export excel using "output/daily_duplicate_check_$date.xlsx", sheet("Missing Screening", replace) ///
 		cell(A1) firstrow(variables)
 
 		
