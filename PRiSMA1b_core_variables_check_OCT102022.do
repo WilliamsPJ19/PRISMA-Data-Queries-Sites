@@ -14,6 +14,10 @@
 */
 
 ***step2. set up your directory
+clear 
+set more off
+cap log close 
+
 gl dir="/Users/Xiaoyan/Documents/GWU/data dictionary"
 gl dic="$dir/dictionary"
 gl da="$dir/data"
@@ -38,6 +42,7 @@ quietly log off //stop log temporarily
 
 ***step5. import data to match variable 
 import delimited using "$da/mnh00.csv", clear
+rename *, upper
 save "$da/data_mnh00", replace
 
 ***step6. store variable list 
