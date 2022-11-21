@@ -3,8 +3,9 @@
 This repository contains all PRiSMA codes uploaded by GWU team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
 #### :pushpin: *Updated on 11/01 -- Updated PRiSMA1a_daily_duplicates_check_NOV012022.do to include all forms*
-#### :pushpin: *Updated on 11/21 -- Added PRiSMA1b_core_variables_check-OCT182022.do and PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022_varlist.xlsx to reflect the changes in new data dictionary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022*
-#### :pushpin: *Updated on 11/21 -- Revised original name of PRiSMA1b_core_variables_check.do to PRiSMA1b_core_variables_check_SEP292022.do to indicate this do file is for older data dicitonary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.0-SEP222022.xlsx.*
+#### :pushpin: *Updated on 11/21 -- *
+*1. Added PRiSMA1b_core_variables_check-OCT182022.do and PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022_varlist.xlsx to reflect the changes in new data dictionary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022*
+*2. Revised original name of PRiSMA1b_core_variables_check.do to PRiSMA1b_core_variables_check_SEP292022.do to indicate this do file is for older data dicitonary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.0-SEP222022.xlsx.*
 
 ## File Structure
 **1a\. `PRiSMA1a_daily_duplicates_check.do`** This code is developed to be run by site data managers on a **daily** basis
