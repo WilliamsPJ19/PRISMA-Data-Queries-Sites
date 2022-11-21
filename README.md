@@ -18,7 +18,7 @@ This repository contains all PRiSMA codes uploaded by GWU team that will be shar
      - Check to make sure all women enrolled in study are were also screened
      #### :pushpin: *includes code for all forms*
      
-**1b\. `PRiSMA1b_core_variables_check-OCT182022.do`** This code is developed to be run by site data managers on a **daily** basis
+**1b\. `PRiSMA1b_core_variables_check.do`** This code is developed to be run by site data managers on a **daily** basis
    - Current version date: OCT182022
    - input: All MNH raw data
    - output: log file with missing core variables 
