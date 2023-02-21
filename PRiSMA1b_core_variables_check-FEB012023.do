@@ -1,21 +1,22 @@
 ********************************************************************************
 *Checking if variables in data are matched with data dictionary
 
-/*Input: 1. PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_varlist.xlsx
+/*Input: 1. PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023.xlsx
          2. Data in mnh##.csv format
   Output: log file in .smcl and .pdf format
-  Customize: step2:
-             1. revise global setting as needed 
-             2. revise form numbers as needed 
+  Customize: 1.(line 29-32)
+             step2:revise global setting as needed 
+             2.(line 35)
+			 step2:revise form numbers as needed 
 			 (only add/remove number ##, for example 00 will call mnh00.csv under data folder)
-			 step 3:
-			 comment the command for not applicable site
+			 3.(line 57-61)
+			 step 3:comment the command for not applicable site 
 */
 ********************************************************************************
 
 ***step1. set up folders under your directory:
 /*
-1. dictionry (save "PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_varlist.xlsx" here)
+1. dictionry (save "PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023.xlsx" here)
 2. data (save data here) 
 3. log (log file will be exported here)
 */
