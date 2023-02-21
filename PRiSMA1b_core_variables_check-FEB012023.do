@@ -8,6 +8,8 @@
              1. revise global setting as needed 
              2. revise form numbers as needed 
 			 (only add/remove number ##, for example 00 will call mnh00.csv under data folder)
+			 step 3:
+			 comment the command for not applicable site
 */
 ********************************************************************************
 
@@ -23,20 +25,43 @@ clear
 set more off
 cap log close 
 
-gl dir="/Users/Xiaoyan/Documents/GWU/data dictionary" //revise to you local directory!
+*revise to you local directory/folder!
+gl dir="/Users/Xiaoyan/Documents/GWU/data dictionary" 
 gl dic="$dir/dictionary"
-gl da="$dir/data" //revise if you saved data in different folder!
+gl da="$dir/data" 
 gl log="$dir/log"
 
-local form_num 00 01 02 //revise form number as needed!
+*revise form number as needed!
+local form_num 00 01 02 
 
 ***step3. Import variable names in data dictionary and save .dta file 
-foreach form in mnh00 mnh01 mnh02 mnh03 mnh04 mnh05 mnh06 mnh07 mnh08 mnh09 mnh10 ///
-mnh11 mnh12 mnh13 mnh14 mnh15 mnh16 mnh17 mnh18 mnh19 mnh20 ///
-mnh21 mnh22 mnh23 mnh24 mnh25_Zambia mnh25_Pakistan mnh25_Ghana mnh25_India mnh25_Kenya mnh26 {
-import excel "$dic/PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_varlist.xlsx", sheet(`form') firstrow clear
-save "$dic/dict_`form'", replace
+foreach y in 00 01 02 03 04 05 06 07 08 09 10 ///
+11 12 13 14 15 16 17 18 19 20 ///
+21 22 23 24 25_Zambia 25_Pakistan 25_Ghana 25_India 25_Kenya 26 {
+  import excel "$dic/PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023.xlsx", ///
+    sheet("Data Dictionary") cellrange(A1:E3847) firstrow clear
+    drop FormName SectionName Question
+    keep if Form == "MNH`y'"
+    gen n = _n
+	local nvar = _N
+    reshape wide VariableName, i(Form) j(n) 
+    drop Form
+	forval j = 1/`nvar' {
+     local varname = strtoname(strtrim(VariableName`j'[1]))
+     capture rename VariableName`j'  `varname'
+    }
+  save "$dic/dict_mnh`y'", replace
 }
+
+*revise to comment the command not applicable for each site!
+// use "$dic/dict_mnh25_Zambia", clear
+use "$dic/dict_mnh25_Pakistan", clear
+// use "$dic/dict_mnh25_Ghana", clear
+// use "$dic/dict_mnh25_India", clear
+// use "$dic/dict_mnh25_Kenya", clear
+
+*save mnh25.dta
+save "$dic/dict_mnh25", replace
 
 ***step4 start log file
 gl today: display %tdCYND date(c(current_date), "DMY")
@@ -52,14 +77,14 @@ save "$da/data_mnh`x'", replace
 
 ***step6. store variable list 
 des using "$dic/dict_mnh`x'.dta", varlist
-loc di`x'_vars `r(varlist)'
+loc dic`x'_vars `r(varlist)'
 des using "$da/data_mnh`x'.dta", varlist
 loc da`x'_vars `r(varlist)'
 
 ***step7. compare variables 
-loc common`x': list di`x'_vars & da`x'_vars
-loc dict_only`x': list di`x'_vars - da`x'_vars
-loc data_only`x': list da`x'_vars - di`x'_vars
+loc common`x': list dic`x'_vars & da`x'_vars
+loc dict_only`x': list dic`x'_vars - da`x'_vars
+loc data_only`x': list da`x'_vars - dic`x'_vars
 
 ***step8. display mismatch part
 quietly log on //start log 
