@@ -2,8 +2,8 @@
 ## Description
 This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 20 March:*
-##### Restructured Github to be organized by Stata and R codes. 
+#### :pushpin: *Updated on 20 March:* Restructured Github to be organized by Stata and R codes. 
+
 
 ## Folder Structure
 **Folder: R Query Codes** 
