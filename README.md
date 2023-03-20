@@ -29,8 +29,8 @@ This repository contains all PRiSMA codes uploaded by GW team that will be share
      - **`PRiSMA1b_core_variables_check.do`** 
    - Documents: 
      - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx*
-   - Example Output: 
-     - *Core variable check_20230221.smcl*
-     - *Core variable check_20230221.pdf*
+     - Example Output: 
+       - *Core variable check_20230221.smcl*
+       - *Core variable check_20230221.pdf*
      
 
