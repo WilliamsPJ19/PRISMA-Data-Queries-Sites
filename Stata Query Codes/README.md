@@ -25,3 +25,7 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
    - function: 
      - Checks for missing core variables in the dataset 
      #### :pushpin: *includes code for all forms*
+
+**Example output for core variable checks** 
+   - *Core variable check_20230221.smcl*
+   - *Core variable check_20230221.pdf*
