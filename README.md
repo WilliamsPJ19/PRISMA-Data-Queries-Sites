@@ -1,6 +1,6 @@
 # PRiSMA_Data_Codes
 ## Description
-This repository contains all PRiSMA codes uploaded by GWU team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
+This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
 #### :pushpin: *Updated on 11/21:*
 ##### *1. Added PRiSMA1b_core_variables_check-OCT182022.do and PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022_varlist.xlsx to reflect the changes in new data dictionary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.1-OCT182022.xlsx*
