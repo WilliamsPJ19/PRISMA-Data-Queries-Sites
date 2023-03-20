@@ -6,7 +6,7 @@ This repository contains all PRiSMA codes uploaded by GW team that will be share
 
 
 ## Folder Structure
-**Folder: R Query Codes** 
+**R Query Codes** 
    - Description: Query codes in R language. These are the same codes that are run by GW data team to generate weekly query reports. 
    - Date codes last updated: 13 March 2023 
    - Codes: 
@@ -20,7 +20,7 @@ This repository contains all PRiSMA codes uploaded by GW team that will be share
      - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx*
      - *fetal_biometry_range.xlsx*
      
-**Folder: Stata Query Codes** 
+**Stata Query Codes** 
 #### :pushpin: *GW team currently working on translating all R codes to Stata*
    - Description: Query codes in Stata language. 
    - Date codes last updated: 01 Feb 2023 
