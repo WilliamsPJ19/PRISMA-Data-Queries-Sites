@@ -2,23 +2,15 @@
 ## Description
 This folder contains all PRiSMA Stata codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 1 Feb 2023:*
-##### *1. Added PRiSMA1b_core_variables_check-OCT182022.do and PRiSMA-MNH-Data-Dictionary-Repository_V.2.2-FEB012023_varlist.xlsx*
-##### *2. Revised original name of PRiSMA1b_core_variables_check.do to PRiSMA1b_core_variables_check_SEP292022.do to indicate this do file is for older data dicitonary: PRiSMA-MNH-Data-Dictionary-Repository_V.2.0-SEP222022.xlsx.*
+#### :pushpin: *Updated on 21 Apr 2023:*
+##### *1. Added PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx*
+##### *2. Added 01_CoreVar_PRiSMA_Dataquery-MAR272023.do to reflect updates in data dictionary.*
+##### *3. Added 02_DupID_PRiSMA_Dataquery_APR212023.do*
 
-## File Structure
-**1a\. `PRiSMA1a_daily_duplicates_check.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version date: NOV012022 
-   - input: All MNH raw data
-   - output: excel file with all duplicate screening IDs, mom IDs, and infant IDs
-   - timing: daily  
-   - function: 
-     - Checks for duplicate IDs 
-     - Check to make sure all women enrolled in study are were also screened
-     #### :pushpin: *includes code for all forms*
      
-**1b\. `PRiSMA1b_core_variables_check.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version date: FEB012023
+## File Structure
+**\. `01_CoreVar_PRiSMA_Dataquery-MAR272023.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version date: MAR272023
    - input: All MNH raw data
    - output: log file with missing core variables 
    - timing: daily  
@@ -26,6 +18,18 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
      - Checks for missing core variables in the dataset 
      #### :pushpin: *includes code for all forms*
 
+**\. `02_DupID_PRiSMA_Dataquery_APR212023.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version date: APR212023 
+   - input: All MNH raw data
+   - output: excel file with all duplicate screening IDs, mom IDs, and infant IDs
+   - timing: daily  
+   - function: 
+     - Checks for duplicate IDs 
+     - Check all enrolled woman has enrollment form
+     #### :pushpin: *includes code for all forms*
+     
+
+
 **Example output for core variable checks** 
-   - *Core variable check_20230221.smcl*
-   - *Core variable check_20230221.pdf*
+   - *Core variable query_20230423.pdf*
+   - *Duplicate query_20230423.xlsx*
