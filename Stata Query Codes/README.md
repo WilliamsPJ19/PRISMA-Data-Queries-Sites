@@ -7,7 +7,11 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
 ##### *2. Added 01_CoreVar_PRiSMA_Dataquery-MAR272023.do to reflect updates in data dictionary.*
 ##### *3. Added 02_DupID_PRiSMA_Dataquery_APR212023.do*
 
-     
+## How to Setup Your Files Before Running the Stata Codes: 
+  #### 1. Create a folder called "data". This is where all of the raw .csv files should be stored 
+  #### 2. Create a folder called "dictionary". This is where the data dictionary should be stored. 
+  #### 3. Create a folder called "query". This folder is where all the exported reports will be stored. 
+  
 ## File Structure
 **\. `01_CoreVar_PRiSMA_Dataquery-MAR272023.do`** This code is developed to be run by site data managers on a **daily** basis
    - Current version date: MAR272023
