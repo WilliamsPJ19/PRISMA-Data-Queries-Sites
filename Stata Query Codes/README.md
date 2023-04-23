@@ -25,7 +25,7 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
    - timing: daily  
    - function: 
      - Checks for duplicate IDs 
-     - Check to make sure all women enrolled in study are were also screened
+     - Check all enrolled woman has enrollment form
      #### :pushpin: *includes code for all forms*
      
 
