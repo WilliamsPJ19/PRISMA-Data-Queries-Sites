@@ -63,7 +63,7 @@ preserve
 keep if dup_id > 0
 keep SCRNID MOMID PREGID dup_id
 if dup_id==0 | dup_id==1 {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 		
@@ -85,7 +85,7 @@ preserve
 keep if dup_id > 0
 keep SCRNID MOMID PREGID TYPE_VISIT dup_id
 if (dup_id==0 | dup_id==1) & TYPE_VISIT != 13 & TYPE_VISIT != 14 {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -107,7 +107,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID dup_id
 if (dup_id==0 | dup_id==1) {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -129,7 +129,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID TYPE_VISIT dup_id
 if (dup_id==0 | dup_id==1) & TYPE_VISIT != 13 & TYPE_VISIT != 14 {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }	
 			
@@ -151,7 +151,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID OBSSTDAT dup_id
 if (dup_id==0 | dup_id==1) {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -173,7 +173,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID INFANTID dup_id
 if (dup_id==0 | dup_id==1){
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -195,7 +195,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID INFANTID TYPE_VISIT dup_id
 if (dup_id==0 | dup_id==1) & TYPE_VISIT != 13 & TYPE_VISIT != 14 {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -226,7 +226,7 @@ preserve
 keep if dup_id > 0
 keep MOMID PREGID INFANTID vistDate dup_id
 if (dup_id==0 | dup_id==1) {
-	export excel using "$query/duplicate_check_$today.xlsx", sheet("MNH`x'", replace) ///
+	export excel using "$query/Duplicate query_$today.xlsx", sheet("MNH`x'", replace) ///
 		cell(A1) firstrow(variables)
 }
 				
@@ -265,5 +265,5 @@ local momid_form 03 /*04 05 06 07 08 09 10*/ ///
 merge 1:1 MOMID PREGID using "$da/mnh02.dta", generate (miss_enroll)
 keep if miss_enroll == 1
 keep MOMID PREGID 
-export excel using "$query/duplicate_check_$today.xlsx", ///
+export excel using "$query/Duplicate query_$today.xlsx", ///
 sheet("Missing enrollment", replace) cell(A1) firstrow(variables)
