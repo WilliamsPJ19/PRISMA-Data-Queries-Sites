@@ -8,9 +8,9 @@
 *Function: check to make sure all variables exist in the data and match data dictionary formatting 
 *Output: query file in .smcl and .pdf format
 
-/*Customize: 1. step2: *revise to you local directory/folder!
+/*Customize: 1. step1: *revise to you local directory/folder!
              2. step2: *deselect the forms not for query by using /*##*/ !
-			 3. step3: *revise to comment the command not applicable for each site! 
+	     3. step3: *revise to comment the command not applicable for each site! 
 */
 ********************************************************************************
 
