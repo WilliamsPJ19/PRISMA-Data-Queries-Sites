@@ -2,8 +2,9 @@
 ## Description
 This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
 
-#### :pushpin: *Updated on 20 March:* Restructured Github to be organized by Stata and R codes. 
-
+#### :pushpin: *Updated on 23 April:* 
+    - Updated duplicate ID and core variable checking codes in Stata. 
+    - Added updated data dictionary (v2.3 MAR272023)
 
 ## Folder Structure
 **R Query Codes** 
@@ -17,18 +18,20 @@ This repository contains all PRiSMA codes uploaded by GW team that will be share
      - **`04_VisitType_PRiSMA4a_Dataquery.R`** 
      - **`05_DataExport_PRiSMA4a_Dataquery.R`** 
    - Documents: 
+     - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023_Queries.xlsx*
      - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx*
      - *fetal_biometry_range.xlsx*
      
 **Stata Query Codes** 
 #### :pushpin: *GW team currently working on translating all R codes to Stata*
    - Description: Query codes in Stata language. 
-   - Date codes last updated: 01 Feb 2023 
+   - Date codes last updated: 23 April 2023 
    - Codes: 
      - **`PRiSMA1a_daily_duplicates_check.do`** 
      - **`PRiSMA1b_core_variables_check.do`** 
    - Documents: 
-     - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx*
+     - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023_Queries.xlsx*
+     - *PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx* 
      - Example Output: 
        - *Core variable check_20230221.smcl*
        - *Core variable check_20230221.pdf*
