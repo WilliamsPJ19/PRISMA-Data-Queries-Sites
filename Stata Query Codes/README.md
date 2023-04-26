@@ -22,8 +22,8 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
      - Checks for missing core variables in the dataset 
      #### :pushpin: *includes code for all forms*
 
-**\. `02_DupID_PRiSMA_Dataquery_APR212023.do`** This code is developed to be run by site data managers on a **daily** basis
-   - Current version date: APR212023 
+**\. `02_DupID_PRiSMA_Dataquery_APR262023.do`** This code is developed to be run by site data managers on a **daily** basis
+   - Current version date: APR262023 
    - input: All MNH raw data
    - output: excel file with all duplicate screening IDs, mom IDs, and infant IDs
    - timing: daily  
@@ -35,5 +35,5 @@ This folder contains all PRiSMA Stata codes uploaded by GW team that will be sha
 
 
 **Example output for core variable checks** 
-   - *Core variable query_20230423.pdf*
-   - *Duplicate query_20230423.xlsx*
+   - *Core variable query_20230426.pdf*
+   - *Duplicate query_20230426.xlsx*
