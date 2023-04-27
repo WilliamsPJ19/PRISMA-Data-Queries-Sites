@@ -201,7 +201,7 @@ if (dup_id==0 | dup_id==1) {
 use "$da/mnh02.dta", clear
 bysort MOMID PREGID: gen dup_id=cond(_N==1,0,_n)
 keep if dup_id == 0 | dup_id == 1
-save "$da/mnh02_clean", replace
+save "$da/mnh02_id", replace
 
 *deselect the forms not for query by using /*##*/ (These are forms to match MOMID with mnh02)
 local momid_form 03 04 05 06 07 08 09 10 ///
