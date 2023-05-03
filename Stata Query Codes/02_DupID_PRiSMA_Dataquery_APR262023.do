@@ -44,17 +44,17 @@ local enroll_form 00 02
 *forms using SCRNID and VISIT_TYPE to identify duplicates (form 01)
 local us_form 01
 *forms using MOMID and PREGID to identify duplicates (form 03 09 10 16 17 18 23)
-local mat_form 03 09 10 16 17 /*18*/ 23
+local mat_form 03 09 10 /*16 17 18 23*/
 *forms using MOMID, PREGID and VISIT_TYPE to identify duplicates (form 04 05 06 07 08 12 25 26)
 local multi_mat_form 04 05 06 07 08 12 25 26 
 *forms using MOMID, PREGID and visitDate to identify duplicates (form 19)
-local random_mat_form 19
+local random_mat_form /*19*/
 *forms using MOMID, PREGID, INFANTID to identify duplicates (form 11 22 24)
-local inf_form 11 22 24
+local inf_form 11 /*22 24*/
 *forms using MOMID, PREGID, INFANTID and VISIT_TYPE to identify duplicates (form 13 14 15)
 local multi_inf_form 13 14 15
 *forms using MOMID, PREGID, INFANTID and visitDate to identify duplicates (form 20 21)
-local random_inf_form /*20*/ 21
+local random_inf_form /*20 21*/
 
 ********************************************************************************
 ***step4. run duplicates check query and export duplicats in each form
@@ -205,8 +205,8 @@ save "$da/mnh02_id", replace
 
 *deselect the forms not for query by using /*##*/ (These are forms to match MOMID with mnh02)
 local momid_form 03 04 05 06 07 08 09 10 ///
-11 12 13 14 15 16 17 /*18*/ 19 /*20*/ ///
-21 22 23 24 25 26
+11 12 13 14 15 /*16 17 18 19 20*/ ///
+/*21 22 23 24*/ 25 26
 
 *create temp files for each form with just momid and pregid 
  foreach  y of local momid_form {
@@ -230,7 +230,7 @@ local momid_form 03 04 05 06 07 08 09 10 ///
 ********************************************************************************
 *step 6. export MomID don't have an enrollment form
 ********************************************************************************
-merge 1:1 MOMID PREGID using "$da/mnh02.dta", generate (miss_enroll)
+merge 1:1 MOMID PREGID using "$da/mnh02_id.dta", generate (miss_enroll)
 keep if miss_enroll == 1
 keep MOMID PREGID 
 export excel using "$query/Duplicate query_$today.xlsx", ///
