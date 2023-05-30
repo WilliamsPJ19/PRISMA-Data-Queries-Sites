@@ -39,8 +39,8 @@ gl query="$dir/query"
 
 *deselect the data not for query by using /*##*/ !
 local form_num 00 01 02 03 04 05 06 07 08 09 10 ///
-11 12 13 14 15 /*16 17 18 19 20*/ ///
-/*21 22 23 24*/ 25 26
+11 /*12 13 14 15 16 17 18 19 20*/ ///
+/*21 22 23 24*/ 25 /*26*/
 
 ********************************************************************************
 ***step3. Import variable names in data dictionary and save .dta file 
@@ -67,9 +67,9 @@ foreach y in 00 01 02 03 04 05 06 07 08 09 10 ///
 *revise to comment the command not applicable for each site!
 // use "$dic/dict_mnh25_Zambia", clear
 // use "$dic/dict_mnh25_Pakistan", clear
-// use "$dic/dict_mnh25_Ghana", clear
+use "$dic/dict_mnh25_Ghana", clear
 // use "$dic/dict_mnh25_India", clear
-use "$dic/dict_mnh25_Kenya", clear
+//use "$dic/dict_mnh25_Kenya", clear
 
 *save mnh25.dta
 save "$dic/dict_mnh25", replace
