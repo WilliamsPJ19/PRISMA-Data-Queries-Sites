@@ -1,4 +1,4 @@
-# PRiSMA_Data_Codes
+# PRISMA-Data-Codes
 ## Description
 This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository (tutorial at the end of this page)** and upload their code and output there. 
 
