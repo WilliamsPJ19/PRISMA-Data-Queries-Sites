@@ -1,6 +1,6 @@
 # PRiSMA_Data_Codes
 ## Description
-This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository** and upload their code and output there. 
+This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository (tutorial at the end of this page)** and upload their code and output there. 
 
 #### :pushpin: *Updated on 23 April:* 
     - Updated duplicate ID and core variable checking codes in Stata. 
@@ -35,5 +35,18 @@ This repository contains all PRiSMA codes uploaded by GW team that will be share
      - Example Output: 
        - *Core variable check_20230221.smcl*
        - *Core variable check_20230221.pdf*
-     
+
+##  **How To Fork A Respository** 
+### :pushpin: 1\. **Open your Github repository and click the “fork” button in the top right corner**
+![image](https://github.com/PRiSMA-Study/PRiSMA-Data-Queries-Sites/assets/107492595/8f364b2e-48f8-4192-af8c-af1df9841d33)
+
+### :pushpin: 2\. **A window will pop up asking if you would like to create a new fork. Click “create fork”**
+![image](https://github.com/PRiSMA-Study/PRiSMA-Data-Queries-Sites/assets/107492595/5c57226d-b764-41c3-b673-7883336b5065)
+
+### :pushpin: 2\. **You will now be in your own forked repository, which is essentially a copy of the main
+branch. Any site-specific updates to codes can be uploaded to your forked repository**
+![image](https://github.com/PRiSMA-Study/PRiSMA-Data-Queries-Sites/assets/107492595/149d55aa-1dd9-4b6c-92cb-74eee68d9705)
+
+
+
 
