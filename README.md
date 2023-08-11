@@ -1,6 +1,6 @@
 # PRISMA-Data-Codes
 ## Description
-This repository contains all PRiSMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository (tutorial at the end of this page)** and upload their code and output there. 
+This repository contains all PRISMA codes uploaded by GW team that will be shared and used by sites. We ask that each site please **create their own fork of this repository (tutorial at the end of this page)** and upload their code and output there. 
 
 #### :pushpin: *Updated on 23 April:* 
     - Updated duplicate ID and core variable checking codes in Stata. 
