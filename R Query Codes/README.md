@@ -50,9 +50,16 @@ This repository contains all PRiSMA codes that will be used internally and by si
    - output:
      - One .rda file with all mismatched visit types 
    - function: 
-     - Check for visit types that do not match the PRISMA window and gestational age at time of visit 
+     - Check for visit types that do not match the PRISMA window and gestational age at time of visit
 
-**6\. `05_DataExport_PRiSMA4a_Dataquery.R`** 
+**5\. `05_MissingEnrollCrit_PRISMA_4a_Dataquery.R`** 
+   - input: Wide data (all raw .csv files) and Long data
+   - output:
+     - One .rda file with all MOMIDs that do not meet enrollment criteria 
+   - function: 
+     - Confirm all enrolled particpants meet our enrollment criteria as in MNH02.
+
+**6\. `DataExport_PRiSMA4a_Dataquery.R`** 
    - input: All .rds files 
    - output:
      - Excel sheet with a full query report 

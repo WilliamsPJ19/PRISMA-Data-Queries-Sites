@@ -1,9 +1,7 @@
 #*****************************************************************************
 #*QUERY #1 -- CHECK FOR CORE VARIABLE NAMES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 30 May 2023
-       # Moved query ID code from export script to this script
-       # changed form complete date to visit complete date 
+#* Last updated: 06 September 2023
 
 #*Input: Wide data (all raw .csv files)
 #*Function: check to make sure all variables exist in the data and match data dictionary formatting 
@@ -13,16 +11,16 @@
 #* You can copy and paste "UPDATE EACH RUN" to find where to update 
 #* 1. Update "UploadDate" 
 #* 2. Set "site" variable to the site you are running the query for 
-
+#* 3. Set your main directory 
+#* 
 #* Once the previous lines of code are updated, you can highlight the entire script and run 
 
 #* Notes: 
 #* Make sure the data dictionary is in the correct folder 
-
 #*****************************************************************************
-
-# clear environment 
-rm(list = ls())
+#*****************************************************************************
+#* DATA SETUP
+#*****************************************************************************
 
 # load packages 
 library(tidyverse)
@@ -35,37 +33,34 @@ library(lubridate)
 library(openxlsx)
 library(stringr)
 
-## UPDATE EACH RUN ## 
-# 1. Update "UploadDate" (this should match the folder name in synapse)
-# 2. Set "site" variable to the site you are running the query for 
-UploadDate = "2023-05-26"
-site = "Zambia"
+# UPDATE EACH RUN: set site variable - this is nsecessary to call in the correct MNH25 variables from the data dictionary (each site has their own MNH25)
+site = "Kenya"
 
-#*****************************************************************************
-#*set directory and read data 
-#*****************************************************************************
-## Set working directory to site-specific folder -- main folder
-setwd(paste0("~/PRiSMAv2Data/", site, "/", UploadDate, "/", sep = ""))
+# UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
+UploadDate = "2023-08-25"
 
-## Load in wide data 
-load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
 
-#*****************************************************************************
-#*check for core variables in the data 
-#*****************************************************************************
-#* create excel work book 
-## make sure this is the most updated data dictionary being used 
-variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx")
+## UPDATE EACH RUN: set path to location where you want to save the query output below 
+path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
+
+## call in the data dictionary 
+variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
 variable_names <- variable_names %>% select(Form, `Variable Name`)
 names(variable_names) = c("Form", "VarName")
 variable_names$VarName = toupper(variable_names$VarName)
 
-#*Make empty dataframe 
+#* Make empty dataframe to store the extracted queries in: 
+#* variables that are present in the data but not the data dictionary will be flagged as "extra variables" in VarNamesExtra
 VarNamesExtra <- as.data.frame(matrix(nrow = 1, ncol = 2))
 names(VarNamesExtra) = c("Form", "Extra Variables")
 
+#* variables that are present in the data dictionary but not the data will be flagged as "missing variables" in VarNamesMissing
 VarNamesMissing <- as.data.frame(matrix(nrow = 1, ncol = 2))
 names(VarNamesMissing) = c("Form", "Missing Variables")
+
+## The following code will loop through each form to identify any extra or missing variables 
 #*****************************************************************************
 #*MNH00
 #*****************************************************************************
@@ -1052,7 +1047,8 @@ if (exists("mnh24")==TRUE){
 if (exists("mnh25")==TRUE){
   
   #*get variable list for MNH25 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH25_Zambia") %>% select("VarName")
+  VarNames_form <- variable_names %>%  filter(Form == paste0("MNH25_", site))
+  
   VarNames_m25 = as.vector(VarNames_form$VarName)
   
   #*get variable list for MNH25 from data  
@@ -1077,7 +1073,7 @@ if (exists("mnh25")==TRUE){
   }
   
   #*bind with other forms
-  if (length(VarNamesMissing_m25 >1)){
+  if (length(VarNamesMissing_m25 > 1)){
     VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m25)
   }
   
@@ -1085,6 +1081,7 @@ if (exists("mnh25")==TRUE){
     VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m25)
   }
 }
+
 #*****************************************************************************
 #*MNH26
 #*****************************************************************************
@@ -1199,4 +1196,5 @@ if (dim(VarNamesExtra)[1] > 1){
 missing_query <- rbind(VarNamesMissing, VarNamesExtra)
 
 ## export variable checking query 
-save(missing_query, file = "queries/missing_query.rda")
+save(missing_query, file = paste0(path_to_save, "missing_query.rda"))
+

@@ -1,32 +1,21 @@
 #*****************************************************************************
 #*QUERY #00 -- Import all raw .csv files from each upload 
+#* Written by: Stacie Loisate & Xiaoyan Hu
+#* Last updated: 06 September 2023
+
+
 #*Input: Raw Data 
 #*Function: import raw data from sites upload to synapse 
 #*Output: Two .RData files of the data - wide and long 
-#* Last updated: 30 May 2023 
-    # Moved query ID code from export script to this script
-    # Removed all code that calls in the data dictionary. This should reduce some errors 
 
-#* Previous Updates: 
-#* 20 April 2023, Updated to harmonize mnh09 conversion from wide to long. MNH09 has 4 different infant IDs, we want only 1 infant ID in the output. The code below has been added to address this, 
-      # Updated to be more automated. Now you only need to define the upload date and site and the beginning of the code and codes setting the working directories will run automatically.
-      # Updated all instances of "DateFormCompleted" to "VisitDate"
-#* 29 March 2023, updated to include coding to reorder the varnames to match the order in the data dictionary 
- 
-
-## this helps make the code run more seamless 
+#* Notes:
+#* load in .csvs and confirm the following: 
+# 1. Each .csv is saved with the lowercase form number with ".csv" - Example. "mnh00.csv"
+# 2. column names within each dataframe should be capitalized 
 #*****************************************************************************
-
-#* Items to Update before running script 
-#* You can copy and paste "UPDATE EACH RUN" to find where to update 
-#* 1. Update "UploadDate" 
-#* 2. Set "site" variable to the site you are running the query for 
-
-#* Once the previous lines of code are updated, you can highlight the entire script and run 
 #*****************************************************************************
-
-# clear environment 
-rm(list = ls())
+## Data setup ## 
+#*****************************************************************************
 
 ## load packages 
 library(readr)
@@ -35,49 +24,50 @@ library(stringr)
 library(tidyverse)
 library(data.table)
 
-## UPDATE EACH RUN ## 
-# 1. Update "UploadDate"  (this should match the folder name in synapse)
-# 2. Set "site" variable to the site you are running the query for 
-UploadDate = "2023-05-26"
-site = "Zambia"
 
-# Set working directory 
-setwd(paste("Z:/SynapseCSVs/",site, "/", UploadDate, sep = ""))
+  ## UPDATE EACH RUN: set upload date - this will help with saving each of the files 
+  UploadDate = "2023-08-25"
+  
+  ## UPDATE EACH RUN: set path to location where data is stored
+  path_to_data <- "Z:/SynapseCSVs/Kenya/2023-08-25/"
+  
+  ## UPDATE EACH RUN: set path to location where you want to save the output below 
+  path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/data/"
 
-## import raw .CSVs in wide format 
-temp = list.files(pattern="*.csv")
-myfiles = lapply(temp, read.csv)
+  ## pull all .csv files from the folder specified above 
+  mnh_list <- list() # create an empty list first.
+  list_mnh <- dir(path = path_to_data, pattern = "*csv", full.names = TRUE) #creates a list of all the csv files in the directory
+  for (data_file in list_mnh[]) { #can test by just bringing in a small number (add 1:2 inside the bracket to do so)
+    form_num <- substr(basename(data_file), 1,5) #substr pulls out the 1:5 spaces in a char (will pull out “mnh00" etc);
+    #basename() pulls out just the name of the file from the entire directory/path.
+    print(paste("Reading", form_num))
+    mnh_list[[form_num]] <- read.csv(data_file)
+  }
 
-
-#  ## make sure all column names are uppercase 
-myfiles <- lapply(myfiles, function (x){
-  upper <- toupper(names(x))
-  setnames(x, upper)
-})
-
-## Import Data Dictionary 
-#variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx")
-# variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
-# variable_names <- variable_names %>% select(Form, `Variable Name`)
-# names(variable_names) = c("Form", "VarName")
-# variable_names$VarName = toupper(variable_names$VarName)
-
-## convert to long format 
+  #  make sure all column names are uppercase 
+  mnh_list <- lapply(mnh_list, function (x){
+    upper <- toupper(names(x))
+    setnames(x, upper)
+  })
+  
+  # extract each list item as its own dataframe in the environment
+  list2env(mnh_list, globalenv())
+  
+#*****************************************************************************
+# Convert data to long format
+  # Some queries require the data to be in long format  
+#*****************************************************************************
+  
+## create function to set column order 
 setcolfirst = function(DT, ...){
   nm = as.character(substitute(c(...)))[-1L]
   setcolorder(DT, c(nm, setdiff(names(DT), nm)))
 }
 
 
-names <- str_extract(temp, '.*(?=\\.csv)')
-names <- as.vector(names)
-names <- as.vector(c("mnh00", "mnh01", "mnh02", "mnh03", "mnh04", "mnh05", "mnh06", 
-                     "mnh07", "mnh08", "mnh09", "mnh10", "mnh11", "mnh12", "mnh13", "mnh14", 
-                     "mnh15", "mnh16", "mnh17", "mnh18", "mnh19", "mnh20", "mnh21", "mnh25"))
-
 if (exists("mnh00")==TRUE){
   
-  mnh00_long <- mnh00 %>% bind_cols(INFANTID=NA) %>% 
+  mnh00_long <- mnh00 %>% bind_cols(INFANTID=NA) %>% ## we want to have the option to bind_rows of the long data, but some forms don'thave infantid -- add a null column here 
     setcolfirst(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT) %>% 
     mutate_all(as.character) %>% 
     pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT), 
@@ -386,7 +376,7 @@ if (exists("mnh25")==TRUE){
 
 if (exists("mnh26")==TRUE){
   
-  mnh26_long <- mnh26 %>% bind_cols( INFANTID = NA) %>% 
+  mnh26_long <- mnh26 %>% bind_cols(SCRNID = NA, INFANTID = NA) %>% 
     setcolfirst(SCRNID, MOMID, PREGID, INFANTID, FTGE_OBSTDAT) %>% 
     mutate_all(as.character) %>% 
     pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, FTGE_OBSTDAT), 
@@ -400,5 +390,12 @@ long_list_names = as.vector(names(long_list))                         # get form
 form_num <- as.vector(str_extract(long_list_names, '.*(?=\\_long)'))  # clean up names for the long format 
 data_long = rbindlist(mget(ls(pattern = "*_long")))                   # bind all the long forms together 
 
-## save data frames as RData file to import into other scripts 
-save(list=c("data_long", "form_num"), file= paste(UploadDate,"_","long",".RData",sep = ""))
+
+#*****************************************************************************
+# Save data frames as RData file to import into other scripts 
+#*****************************************************************************
+## export wide data into new folder
+dfs<-Filter(function(x) is.data.frame(get(x)) , ls())
+save(list=dfs, file= paste0(path_to_save, UploadDate, "_wide",".RData",sep = ""))
+## export long data into new folder
+save(list=c("data_long", "form_num"), file= paste0(path_to_save, UploadDate, "_long",".RData",sep = ""))
