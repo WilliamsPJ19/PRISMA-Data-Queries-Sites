@@ -2,7 +2,18 @@
 This repository contains all PRiSMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
 #### :pushpin: *Last updated on 13 March 2023*
 
-## File Structure and order to run the files 
+## File Structure: 
+* The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
+* The code will export data to two folders:
+  1\. data: where wide and long data will be stored 
+  2\. queries: where each query output from the codes will be stored
+* An example of the overall naming structure compatible with the codes is displayed below -
+  - ### Main folder: 2023-04-23
+  	- ### Sub folder: data
+  	- ### Sub folder: queries
+ 
+     
+## Queries Included: 
 **1\. `00_DataImport_PRiSMA4a_MatDataquery.R`** 
    - input: All MNH raw data
    - output:
