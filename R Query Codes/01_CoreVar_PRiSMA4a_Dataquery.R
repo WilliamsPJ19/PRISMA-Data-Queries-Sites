@@ -1,23 +1,14 @@
 #*****************************************************************************
-#*QUERY #2 -- CHECK FOR DUPLICATE IDs
+#*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
 #* Last updated: 06 September 2023
 
-#*Input: Wide data (all raw .csv files) & Long data 
-#*Functions: 
-    # Duplicate IDs: identifies any duplicate IDs present in the data 
-    # Maternal Protocol check: do all enrolled participants have a MNH02 enrollment form?
-    # Infant Protocol check: are all infants represented in a delivery form
-#*Output: 
-    # .rda file with all duplicate IDs (duplicates_query.rda)
-    # .rda file with all MomIDs missing an enrollment form (MomidNotMatched_query.rda)
-    # .rda file with all InfantIDs missing from a delivery form (InfidNotMatched_query.rda)
+#*Input: Long data 
+#*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
+#*Output: .rda file with all out of range values 
 
-#* Notes: 
-#* If you get an error that says it cannot bind because there are 0 rows, that means there are no duplicates 
 #*****************************************************************************
-#*****************************************************************************
-#* Data Setup
+#* Data setup 
 #*****************************************************************************
 
 # load packages 
@@ -29,1410 +20,1030 @@ library(dplyr)
 library(data.table)
 library(lubridate)
 
-# UPDATE EACH RUN: set site variable - this is necessary to call in the correct MNH25 variables from the data dictionary (each site has their own MNH25)
-site = "Kenya"
-
 # UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
 UploadDate = "2023-08-25"
 
-# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code -- for duplicates
+# UPDATE EACH RUN: Set "site" variable to the site you are running the query for 
+site = "Kenya"
+
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code
 load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
 
-# UPDATE EACH RUN:load in the LONG data we generated from 00_DataImport code -- for protocol checks 
+# UPDATE EACH RUN: load in the LONG data we generated from 00_DataImport code 
 load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
 
-
-# UPDATE EACH RUN: set path to location where you want to save the query output below 
+## UPDATE EACH RUN: set path to location where you want to save the query output below 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
+#* import data dictionary
+varNames_sheet <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
+varNames_sheet <- varNames_sheet %>% dplyr::select(Form, `Variable Name`, `Response Options`,
+                                                   `Query Category`,`Value`, `Field Type (Date, Time, Number, Text)`,
+                                                   `Minimum Value`, `Maximum Value`) %>% 
+                                     mutate(`Variable Name` = toupper(varNames_sheet$`Variable Name`)) %>% 
+                                     rename("varname" = `Variable Name`, "form" = "Form", "ResponseRange" = `Value`)
+
+
+# import excel sheet with ranges for fetal biometry ranges. Valid ranges for these variables depend on gestational age -the excel sheet has the valid ranges by GA
+fetalRange_sheet <- read_excel("~/PRiSMAv2Data/Queries/fetal_biometry_range.xlsx")
+
+## create function to set column order 
+setcolfirst = function(DT, ...){
+  nm = as.character(substitute(c(...)))[-1L]
+  setcolorder(DT, c(nm, setdiff(names(DT), nm)))
+}
+
+
 #*****************************************************************************
-#* check duplicated IDs 
-#* The following codes will extract and ID that is duplicated in the data based on visit date/visit type/MOMID, PREGID, INFANTID
-#*****************************************************************************
-#*Make empty dataframe 
-#* any maternal duplicate ids will be stored in the VarNamesDuplicate data frame
-VarNamesDuplicate <- as.data.frame(matrix(nrow = 1, ncol = 6))
-names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
+#* Fetal Biometry Checks 
+#******************************************************************************
+#* FL_PERES_01_FTS1; FL_PERES_MEAN_FTS1 
+#* AC_PERES_01_FTS1; AC_PERES_MEAN_FTS1
+#* HC_PERES_01_FTS1; HC_PERES_MEAN_FTS1
+#* BPD_PERES_01_FTS1; BPD_PERES_MEAN_FTS1
 
-#*Make empty dataframe 
-#* any infant duplicate ids will be stored in the VarNamesDuplicate data frame
-VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
-names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
+## will need to update US_TYPE or TYPE_VISIT depending on what sites are reporting 
+fetal_biometry_vars = c("SCRNID","MOMID","PREGID","US_OHOSTDAT", "TYPE_VISIT", "US_VISIT", 
+                        "US_GA_WKS_AGE_FTS1", "US_GA_DAYS_AGE_FTS1", "US_GA_WKS_AGE_FTS2", "US_GA_DAYS_AGE_FTS2", ##  GA 
+                        "US_GA_WKS_AGE_FTS3", "US_GA_DAYS_AGE_FTS3", "US_GA_WKS_AGE_FTS4", "US_GA_DAYS_AGE_FTS4", 
+                        "FL_PERES_01_FTS1", "FL_PERED_01_FTS2", "FL_PERED_01_FTS3", "FL_PERED_01_FTS4", ## first measurement of FL 
+                        "FL_PERES_02_FTS1", "FL_PERED_02_FTS2", "FL_PERED_02_FTS3", "FL_PERED_02_FTS4", ## second measurement of FL
+                        "FL_PERES_MEAN_FTS1", "FL_PERES_MEAN_FTS2", "FL_PERES_MEAN_FTS3", "FL_PERES_MEAN_FTS4",   ## FL mean 
+                        "AC_PERES_01_FTS1", "AC_PERED_01_FTS1", "AC_PERED_01_FTS1", "AC_PERED_01_FTS1", ## first measurement of AC 
+                        "AC_PERES_02_FTS1", "AC_PERED_02_FTS1", "AC_PERED_02_FTS1", "AC_PERED_02_FTS1", ## second measurement of AC 
+                        "AC_PERES_MEAN_FTS1", "AC_PERES_MEAN_FTS2", "AC_PERES_MEAN_FTS3", "AC_PERES_MEAN_FTS4", ## AC mean
+                        "HC_PERES_01_FTS1", "HC_PERED_01_FTS1", "HC_PERED_01_FTS1", "HC_PERED_01_FTS1", ## first measurement of HC
+                        "HC_PERES_02_FTS1", "HC_PERED_02_FTS1", "HC_PERED_02_FTS1", "HC_PERED_02_FTS1", ## second measurement of HC
+                        "HC_PERES_MEAN_FTS1", "HC_PERES_MEAN_FTS2", "HC_PERES_MEAN_FTS3", "HC_PERES_MEAN_FTS4", ## HC mean 
+                        "BPD_PERES_01_FTS1", "BPD_PERED_01_FTS1", "BPD_PERED_01_FTS1", "BPD_PERED_01_FTS1", ## first measurement of bpd 
+                        "BPD_PERES_02_FTS1", "BPD_PERED_02_FTS1", "BPD_PERED_02_FTS1", "BPD_PERED_02_FTS1", ## second measurement of bpd 
+                        "BPD_PERES_MEAN_FTS1", "BPD_PERES_MEAN_FTS2", "BPD_PERES_MEAN_FTS3", "BPD_PERES_MEAN_FTS4") ## BPD mean 
 
-#****************************************
-#* SCRNID --> mnh00 and mnh02
-#****************************************
-if (exists("mnh00")==TRUE){
-  
-  dup_SCRNID <- function(form) {
-    ID <- form %>% 
-      dplyr::select(SCRNID)
-    dup <- form[duplicated(ID),] %>% 
-      arrange(SCRNID) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dupID)
-  }
-  
-  m00_id_dup <- dup_SCRNID(mnh00)
-  
-  # export key variables 
-  m00_id_dup <- m00_id_dup %>% 
-    group_by(SCRNID) %>% 
-    filter(OTHR_IEORRES != 1 & OTHR_IEORRES == 77) %>% ## remove the women would had some reason to be excluded 
-    dplyr::select(SCRNID, MOMID, PREGID, SCRN_OBSSTDAT) 
-  
-  # add visit type column 
-  m00_id_dup <- add_column(m00_id_dup,VisitType = NA , .after = "PREGID")
-  
-  # rename columns 
-  names(m00_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
-  
-  # add form column 
-  m00_id_dup <- add_column(m00_id_dup,Form = "MNH00" , .after = "VisitDate")
-  
-  #*bind with other forms
-  if (nrow(m00_id_dup > 1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m00_id_dup)
-  } 
-  
-}
-#****************************************
-#* SCRNID --> mnh02
-#****************************************
-if (exists("mnh02")==TRUE){
-  
-  dup_SCRNID <- function(form) {
-    ID <- form %>% 
-      dplyr::select(SCRNID)
-    dup <- form[duplicated(ID),] %>% 
-      arrange(SCRNID) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dupID)
-  }
-  
-  m02_id_dup <- dup_SCRNID(mnh02)
-  
-  # export key variables 
-  m02_id_dup <- m02_id_dup %>% 
-    dplyr::select(SCRNID, MOMID, PREGID, SCRN_OBSSTDAT)
-  
-  
-  # add visit type column 
-  m02_id_dup <- add_column(m02_id_dup, VisitType = NA , .after = "PREGID")
-  
-  # rename columns 
-  names(m02_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
-  
-  # add form column 
-  m02_id_dup <- add_column(m02_id_dup,Form = "MNH02" , .after = "VisitDate")
-  
-  
-  #*bind with other forms
-  if (nrow(m02_id_dup > 1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m02_id_dup)
-  } 
-}
+# extract fetal biometry  variables from the data 
+forms_fetal_biomery <- mnh01 %>% select(any_of(fetal_biometry_vars))
 
-#****************************************
-#*SCRNID & US_VISIT & US_OHOSTDAT  --> 01
-#*
-#****************************************
-if (exists("mnh01")==TRUE){
-  
-  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT & Visit date 
-  dup_US <- function(form) {
-    ID <- form %>% 
-      dplyr::select(SCRNID, TYPE_VISIT, US_OHOSTDAT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(SCRNID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  out_us <- dup_US(mnh01)
-  
-  # export key variables if duplicates exists 
- out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT, US_OHOSTDAT)
-  
-  # rename columns 
-  names(out_us) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
-  
-  # add form column 
-  out_us <- add_column(out_us,Form = "MNH01")
-  
-  #*bind with other forms
-  if (nrow(out_us > 1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, out_us)
-  } 
-}
-#****************************************
-#*#MOMID & PREGID --> mnh03
-#****************************************
-if (exists("mnh03")==TRUE){
-  
-  names(mnh03) <- toupper(names(mnh03))
-  datalist <- list(mnh03)
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  xmomid_dup <- datalist %>% map(dup_MOMID_PREGID)
-  names(xmomid_dup) = c("m03")
-  
-  for (i in seq(xmomid_dup)){
-    assign(paste0(names(xmomid_dup[i]),"_id_dup"), xmomid_dup[[i]])
-  }
-  
-  # export key variables if duplicates exists 
-  m03_id_dup <- m03_id_dup %>% select(MOMID, PREGID, SD_OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m03_id_dup >1)) {
-    m03_id_dup = cbind(SCRNID = "NA", m03_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m03_id_dup >1)) {
-    names(m03_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitDate")
-    
-    # add form column
-    m03_id_dup <- add_column(m03_id_dup,Form = "MNH03")
-    
-    # add visit type column
-    m03_id_dup <- add_column(m03_id_dup,VisitType = "NA", .before = "VisitDate")
-    
-    m03_id_dup <- m03_id_dup %>% unique() ## only need to include 1 instance of the duplicate
-    
-  }
-  
-  
-  #*bind with other forms
-  if (nrow(m03_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m03_id_dup)
-  }
-}
-#****************************************
-#* MOMID & PREGID & US_VISIT --> MNH04
-#****************************************
-if (exists("mnh04")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  id_visit_dup_m04 <- dup_MOM_PREG_TV(mnh04)
-  
-  # export key variables if duplicates exists 
-  if (length(id_visit_dup_m04 >1)) {
-    id_visit_dup_m04 <- id_visit_dup_m04 %>% select(MOMID, PREGID, TYPE_VISIT,ANC_OBSSTDAT)
-  }
-  
-  # add SCRNID column if duplicates exist 
-  if (length(id_visit_dup_m04 >1)) {
-    id_visit_dup_m04 = cbind(SCRNID = "NA", id_visit_dup_m04)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(id_visit_dup_m04 >1)) {
-    names(id_visit_dup_m04) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  id_visit_dup_m04 <- add_column(id_visit_dup_m04,Form = "MNH04")
-  
-  id_visit_dup_m04 <- id_visit_dup_m04 %>% unique() ## only need to include 1 instance of the duplicate
-  
-  #*bind with other forms
-  if (nrow(id_visit_dup_m04 >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m04)
-  }
-  
-}
+# convert visit date variable to date class 
+forms_fetal_biomery$US_OHOSTDAT = ymd(parse_date_time(forms_fetal_biomery$US_OHOSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d")))
 
-#****************************************
-#* MOMID & PREGID & TYPE_VISIT --> MNH05
-#****************************************
-if (exists("mnh05")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  id_visit_dup_m05 <- dup_MOM_PREG_TV(mnh05)
-  
-  # export key variables if duplicates exists 
-  if (length(id_visit_dup_m05 >1)) {
-    id_visit_dup_m05 <- id_visit_dup_m05 %>% select(MOMID, PREGID, TYPE_VISIT,ANT_PEDAT)
-  }
-  
-  # add SCRNID column if duplicates exist 
-  if (length(id_visit_dup_m05 >1)) {
-    id_visit_dup_m05 = cbind(SCRNID = "NA", id_visit_dup_m05)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(id_visit_dup_m05 >1)) {
-    names(id_visit_dup_m05) = c("SCRNID","MOMID", "PREGID", "VisitType","VisitDate")
-  }
-  
-  # add form column 
-  id_visit_dup_m05 <- add_column(id_visit_dup_m05,Form = "MNH05")
-  
-  id_visit_dup_m05 <- id_visit_dup_m05 %>% unique() ## only need to include 1 instance of the duplicate
+# extract ultrasound visit 1 and calculate GA_US_BASLINE_DAYS 
+forms_fetal_biomery_visit1 <- forms_fetal_biomery %>% 
+  filter(TYPE_VISIT == 1) %>% 
+  ## identify max GA by US  
+  mutate(GA_US_DAYS_FTS1 =  ifelse(US_GA_WKS_AGE_FTS1!= -7 & US_GA_DAYS_AGE_FTS1 != -7,  (US_GA_WKS_AGE_FTS1 * 7 + US_GA_DAYS_AGE_FTS1), NA), 
+         GA_US_DAYS_FTS2 =  ifelse(US_GA_WKS_AGE_FTS2!= -7 & US_GA_DAYS_AGE_FTS2 != -7,  (US_GA_WKS_AGE_FTS2 * 7 + US_GA_DAYS_AGE_FTS2), NA),
+         GA_US_DAYS_FTS3 =  ifelse(US_GA_WKS_AGE_FTS3!= -7 & US_GA_DAYS_AGE_FTS3 != -7,  (US_GA_WKS_AGE_FTS3 * 7 + US_GA_DAYS_AGE_FTS3), NA),
+         GA_US_DAYS_FTS4 =  ifelse(US_GA_WKS_AGE_FTS4!= -7 & US_GA_DAYS_AGE_FTS4 != -7,  (US_GA_WKS_AGE_FTS4 * 7 + US_GA_DAYS_AGE_FTS4), NA)) %>% 
+  mutate(GestAge_Days = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE)) %>% 
+  select(-GA_US_DAYS_FTS1, -GA_US_DAYS_FTS2, -GA_US_DAYS_FTS3, -GA_US_DAYS_FTS4)
 
-  
-  #*bind with other forms
-  if (nrow(id_visit_dup_m05 >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m05)
-  }
-}
-#****************************************
-#* MOMID & PREGID & US_VISIT --> MNH06
-#****************************************
-if (exists("mnh06")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  id_visit_dup_m06 <- dup_MOM_PREG_TV(mnh06)
-  
-  # export key variables if duplicates exists 
-  if (length(id_visit_dup_m06 >1)) {
-    id_visit_dup_m06 <- id_visit_dup_m06 %>% select(MOMID, PREGID, TYPE_VISIT,DIAG_VSDAT)
-  }
-  
-  # add SCRNID column if duplicates exist 
-  if (length(id_visit_dup_m06 >1)) {
-    id_visit_dup_m06 = cbind(SCRNID = "NA", id_visit_dup_m06)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(id_visit_dup_m06 >1)) {
-    names(id_visit_dup_m06) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  id_visit_dup_m06 <- add_column(id_visit_dup_m06,Form = "MNH06")
-  
-  ## only need to include 1 instance of the duplicate
-  id_visit_dup_m06 <- id_visit_dup_m06 %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(id_visit_dup_m06 >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m06)
-  }
-  
-}
-#****************************************
-#* MNH07 
-#****************************************
-if (exists("mnh07")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m07_id_dup <- dup_MOM_PREG_TV(mnh07)
-  
-  # export key variables if duplicates exists 
-  m07_id_dup <- m07_id_dup %>% select(MOMID, PREGID, TYPE_VISIT, MAT_SPEC_COLLECT_DAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m07_id_dup >1)) {
-    m07_id_dup = cbind(SCRNID = "NA", m07_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m07_id_dup >1)) {
-    names(m07_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column
-  m07_id_dup <- add_column(m07_id_dup,Form = "MNH07")
-  
-  ## only need to include 1 instance of the duplicate
-  m07_id_dup <- m07_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m07_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m07_id_dup)
-  }
-  
-}
-#****************************************
-#* MNH08
-#****************************************
-if (exists("mnh08")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m08_id_dup <- dup_MOM_PREG_TV(mnh08)
-  
-  # export key variables if duplicates exists 
-  m08_id_dup <- m08_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, LBSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m08_id_dup >1)) {
-    m08_id_dup = cbind(SCRNID = "NA", m08_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m08_id_dup >1)) {
-    names(m08_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m08_id_dup <- add_column(m08_id_dup,Form = "MNH08")
-  
-  ## only need to include 1 instance of the duplicate
-  m08_id_dup <- m08_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m08_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m08_id_dup)
-  }
-  
-}
-#****************************************
-#* MNH09
-#****************************************
-if (exists("mnh09")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m09_id_dup <- dup_MOMID_PREGID(mnh09)
-  
-  # export key variables if duplicates exists 
-  m09_id_dup <- m09_id_dup %>% select(MOMID, PREGID, MAT_LD_OHOSTDAT)
-  
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m09_id_dup >1)) {
-    m09_id_dup = cbind(SCRNID = "NA", m09_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m09_id_dup >1)) {
-    m09_id_dup = add_column(m09_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m09_id_dup >1)) {
-    names(m09_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m09_id_dup <- add_column(m09_id_dup,Form = "MNH09")
-  
-  ## only need to include 1 instance of the duplicate
-  m09_id_dup <- m09_id_dup %>% unique() 
-  
-  
-  #*bind with other forms
-  if (nrow(m09_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m09_id_dup)
-  }
-}
-#****************************************
-#* MNH10
-#****************************************
-if (exists("mnh10")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m10_id_dup <- dup_MOMID_PREGID(mnh10)
-  
-  # export key variables if duplicates exists 
-  m10_id_dup <- m10_id_dup %>% select(MOMID, PREGID, FORMCOMPLDAT_MNH10) ## kenya missing date var here 
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m10_id_dup >1)) {
-    m10_id_dup = cbind(SCRNID = "NA", m10_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m10_id_dup >1)) {
-    m10_id_dup = add_column(m10_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m10_id_dup >1)) {
-    names(m10_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m10_id_dup <- add_column(m10_id_dup,Form = "MNH10")
-  
-  ## only need to include 1 instance of the duplicate
-  m10_id_dup <- m10_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m10_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m10_id_dup)
-  }
-  
-}
+## in order to calculate GA at at the other US visits, we need to merge in the GA at screening date with the subset of data for the other visits 
+## below i am creating a subset of the  forms_fetal_biomery_visit1 dataset to merge 
+visit1_to_merge <- forms_fetal_biomery_visit1 %>% 
+  # rename visit date to "baseline date" - this will help with merging 
+  rename("BASELINE_DATE" = US_OHOSTDAT) %>% 
+  rename("GA_US_BASELINE_DAYS" = GestAge_Days) %>% 
+  select(SCRNID, BASELINE_DATE, GA_US_BASELINE_DAYS)
 
-#****************************************
-#* MNH11 (INFANT FORM) -- create new variable names for duplicates for infants and merge later
-#****************************************
-if (exists("mnh11")==TRUE){
-  
-  dup_INFANTID <- function(form) {
-    ID <- form %>% 
-      select(INFANTID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(INFANTID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m11_id_dup <- dup_INFANTID(mnh11)
-  
-  # export key variables if duplicates exists 
-  m11_id_dup <- m11_id_dup %>% select(MOMID, PREGID,INFANTID, VISIT_OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m11_id_dup >1)) {
-    m11_id_dup = cbind(SCRNID = "NA", m11_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m11_id_dup >1)) {
-    m11_id_dup = add_column(m11_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m11_id_dup >1)) {
-    names(m11_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m11_id_dup <- add_column(m11_id_dup,Form = "MNH11")
-  
-  ## only need to include 1 instance of the duplicate
-  m11_id_dup <- m11_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m11_id_dup >1)){
-    VarNamesDuplicate_Inf <- m11_id_dup
-  }
-}
-#****************************************
-#* MNH12
-#****************************************
-#*
-#*PNC_N_VISIT
-if (exists("mnh12")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m12_id_dup <- dup_MOM_PREG_TV(mnh12)
-  
-  # export key variables if duplicates exists 
-  m12_id_dup <- m12_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, VISIT_OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m12_id_dup >1)) {
-    m12_id_dup = cbind(SCRNID = "NA", m12_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m12_id_dup >1)) {
-    names(m12_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m12_id_dup <- add_column(m12_id_dup,Form = "MNH12")
-  
-  ## only need to include 1 instance of the duplicate
-  m12_id_dup <- m12_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m12_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m12_id_dup)
-  }
-}
-#****************************************
-#* MNH13(INFANT FORM) 
-#****************************************
-if (exists("mnh13")==TRUE){
-  
-  dup_INF_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m13_id_dup <- dup_INF_TV(mnh13)
-  
-  # export key variables if duplicates exists 
-  m13_id_dup <- m13_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, VISIT_OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m13_id_dup >1)) {
-    m13_id_dup = cbind(SCRNID = "NA", m13_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m13_id_dup >1)) {
-    names(m13_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m13_id_dup <- add_column(m13_id_dup,Form = "MNH13")
-  
-  ## only need to include 1 instance of the duplicate
-  m13_id_dup <- m13_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m13_id_dup >1)){
-    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m13_id_dup)
-  } 
-}
-#****************************************
-#* MNH14(INFANT FORM) 
-#****************************************
-if (exists("mnh14")==TRUE){
-  
-  dup_INF_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m14_id_dup <- dup_INF_TV(mnh14)
-  
-  # export key variables if duplicates exists 
-  m14_id_dup <- m14_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, VISIT_OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m14_id_dup >1)) {
-    m14_id_dup = cbind(SCRNID = "NA", m14_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m14_id_dup >1)) {
-    names(m14_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m14_id_dup <- add_column(m14_id_dup,Form = "MNH14")
-  
-  ## only need to include 1 instance of the duplicate
-  m14_id_dup <- m14_id_dup %>% unique() 
-  
-  
-  #*bind with other forms
-  if (nrow(m14_id_dup >1)){
-    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m14_id_dup)
-  } 
-}
-#****************************************
-#* MNH15 (INFANT FORM) 
-#****************************************
-if (exists("mnh15")==TRUE){
-  
-  dup_INF_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m15_id_dup <- dup_INF_TV(mnh15)
-  
-  # export key variables if duplicates exists 
-  m15_id_dup <- m15_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m15_id_dup >1)) {
-    m15_id_dup = cbind(SCRNID = "NA", m15_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m15_id_dup >1)) {
-    names(m15_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column
-  m15_id_dup <- add_column(m15_id_dup,Form = "MNH15")
-  
-  ## only need to include 1 instance of the duplicate
-  m15_id_dup <- m15_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m15_id_dup >1)){
-    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m15_id_dup)
-  } 
-}
-#****************************************
-#* MNH16
-#****************************************
-if (exists("mnh16")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m16_id_dup <- dup_MOMID_PREGID(mnh16)
-  
-  # export key variables if duplicates exists 
-  m16_id_dup <- m16_id_dup %>% select(MOMID, PREGID, VISDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m16_id_dup >1)) {
-    m16_id_dup = cbind(SCRNID = "NA", m16_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m16_id_dup >1)) {
-    m16_id_dup = add_column(m16_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m16_id_dup >1)) {
-    names(m16_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  
-  # add form column 
-  m16_id_dup <- add_column(m16_id_dup,Form = "MNH16")
-  
-  ## only need to include 1 instance of the duplicate
-  m16_id_dup <- m16_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m16_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m16_id_dup)
-  }
-}
-#****************************************
-#* MNH17
-#****************************************
-if (exists("mnh17")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m17_id_dup <- dup_MOMID_PREGID(mnh17)
-  
-  # export key variables if duplicates exists 
-  m17_id_dup <- m17_id_dup %>% select(MOMID, PREGID, VISDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m17_id_dup >1)) {
-    m17_id_dup = cbind(SCRNID = "NA", m17_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m17_id_dup >1)) {
-    m17_id_dup = add_column(m17_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m17_id_dup >1)) {
-    names(m17_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m17_id_dup <- add_column(m17_id_dup,Form = "MNH17")
-  
-  ## only need to include 1 instance of the duplicate
-  m17_id_dup <- m17_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m17_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m17_id_dup)
-  }
-}
-#****************************************
-#* MNH18
-#****************************************
-if (exists("mnh18")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m18_id_dup <- dup_MOMID_PREGID(mnh18)
-  
-  # export key variables if duplicates exists 
-  m18_id_dup <- m18_id_dup %>% select(MOMID, PREGID, VISDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m18_id_dup >1)) {
-    m18_id_dup = cbind(SCRNID = "NA", m18_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m18_id_dup >1)) {
-    m18_id_dup = add_column(m18_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m18_id_dup >1)) {
-    names(m18_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m18_id_dup <- add_column(m18_id_dup,Form = "MNH18")
-  
-  ## only need to include 1 instance of the duplicate
-  m18_id_dup <- m18_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m18_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m18_id_dup)
-  }
-}
-#****************************************
-#* MNH19
-#****************************************
-if (exists("mnh19")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, OBSSTDAT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, OBSSTDAT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m19_id_dup <- dup_MOM_PREG_TV(mnh19)
-  
-  # export key variables if duplicates exists 
-  m19_id_dup <- m19_id_dup %>% select(MOMID, PREGID, OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m19_id_dup >1)) {
-    m19_id_dup = cbind(SCRNID = "NA", m19_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m19_id_dup >1)) {
-    m19_id_dup = add_column(m19_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m19_id_dup >1)) {
-    names(m19_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m19_id_dup <- add_column(m19_id_dup,Form = "MNH19")
-  
-  ## only need to include 1 instance of the duplicate
-  m19_id_dup <- m19_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m19_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m19_id_dup)
-  }
-}
-#****************************************
-#* MNH20 (INFANT FORM) 
-#****************************************
-if (exists("mnh20")==TRUE){
-  
-  dup_INF_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, INFANTID, OBSSTDAT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, INFANTID,  OBSSTDAT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m20_id_dup <- dup_INF_TV(mnh20)
-  
-  # export key variables if duplicates exists 
-  m20_id_dup <- m20_id_dup %>% select(MOMID, PREGID,INFANTID, OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m20_id_dup >1)) {
-    m20_id_dup = cbind(SCRNID = "NA", m20_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m20_id_dup >1)) {
-    m20_id_dup = add_column(m20_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m20_id_dup >1)) {
-    names(m20_id_dup) = c("SCRNID","MOMID", "PREGID","InfantID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m20_id_dup <- add_column(m20_id_dup,Form = "MNH20")
-  
-  ## only need to include 1 instance of the duplicate
-  m20_id_dup <- m20_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m20_id_dup >1)){
-    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m20_id_dup)
-  } 
-  
-}
+# extract non-screening ultrasound visits  
+forms_fetal_biomery_other_visits <- forms_fetal_biomery %>% 
+  filter(TYPE_VISIT != 1) 
 
-#****************************************
-#* MNH21 -- save as separate form 
-#* VarNamesDuplicate_adverse
-#****************************************
-if (exists("mnh21")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, INFANTID, AESTDAT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID,INFANTID, AESTDAT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m21_id_dup <- dup_MOM_PREG_TV(mnh21)
-  
-  # export key variables if duplicates exists 
-  m21_id_dup <- m21_id_dup %>% select(MOMID, PREGID, INFANTID, AESTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m21_id_dup >1)) {
-    m21_id_dup = cbind(SCRNID = "NA", m21_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m21_id_dup >1)) {
-    m21_id_dup = add_column(m21_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m21_id_dup >1)) {
-    names(m21_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m21_id_dup <- add_column(m21_id_dup,Form = "MNH21")
-  
-  ## only need to include 1 instance of the duplicate
-  m21_id_dup <- m21_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m21_id_dup >1)){
-    VarNamesDuplicate_adverse <-  m21_id_dup
-  }
-}
+# merge screening visit and non-screening visits (we need GA_US_BASELINE_DAYS as its own column so we can calculate GA at visit)
+forms_fetal_biomery_cal_ga <- left_join(forms_fetal_biomery_other_visits, visit1_to_merge, by = c("SCRNID"))
+forms_fetal_biomery_cal_ga <- forms_fetal_biomery_cal_ga %>% 
+  # calculate the difference in days between US visits 
+  mutate(DIFF_DAYS = as.numeric(US_OHOSTDAT-BASELINE_DATE)) %>% 
+  # add the days difference to the GA at screening ultrasound to get the expected GA at non-screening ultrasound
+  mutate(GestAge_Days = GA_US_BASELINE_DAYS + DIFF_DAYS) %>% 
+  select(-BASELINE_DATE, -GA_US_BASELINE_DAYS, -DIFF_DAYS)
 
-#****************************************
-#* MNH22
-#****************************************
-if (exists("mnh22")==TRUE){
-  
-  dup_INF_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, DVSTDAT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, DVSTDAT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m22_id_dup <- dup_INF_TV(mnh22)
-  
-  # export key variables if duplicates exists 
-  m22_id_dup <- m22_id_dup %>% select(MOMID, PREGID,INFANTID, DVSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m22_id_dup >1)) {
-    m22_id_dup = cbind(SCRNID = "NA", m22_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m22_id_dup >1)) {
-    m22_id_dup = add_column(m22_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m22_id_dup >1)) {
-    names(m22_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m22_id_dup <- add_column(m22_id_dup,Form = "MNH22")
-  
-  ## only need to include 1 instance of the duplicate
-  m22_id_dup <- m22_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m22_id_dup >1)){
-    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m22_id_dup)
-  } 
-  
-}
-#****************************************
-#* MNH23
-#****************************************
-if (exists("mnh23")==TRUE){
-  
-  dup_MOMID_PREGID <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m23_id_dup <- dup_MOMID_PREGID(mnh23)
-  
-  # export key variables if duplicates exists 
-  m23_id_dup <- m23_id_dup %>% select(MOMID, PREGID, CLOSE_DSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m23_id_dup >1)) {
-    m23_id_dup = cbind(SCRNID = "NA", m23_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m23_id_dup >1)) {
-    m23_id_dup = add_column(m23_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m23_id_dup >1)) {
-    names(m23_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m23_id_dup <- add_column(m23_id_dup,Form = "MNH23")
-  
-  ## only need to include 1 instance of the duplicate
-  m23_id_dup <- m23_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m23_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m23_id_dup)
-  }
-}
-#****************************************
-#* MNH24
-#****************************************
-if (exists("mnh24")==TRUE){
-  
-  dup_INFANTID <- function(form) {
-    ID <- form %>% 
-      select(INFANTID)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(INFANTID)
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m24_id_dup <- dup_INFANTID(mnh24)
-  
-  # export key variables if duplicates exists 
-  m24_id_dup <- m24_id_dup %>% select(MOMID, PREGID,INFANTID, CLOSE_DSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m24_id_dup >1)) {
-    m24_id_dup = cbind(SCRNID = "NA", m24_id_dup)
-  }
-  
-  # add visit type column  if duplicates exist 
-  if (length(m24_id_dup >1)) {
-    m24_id_dup = add_column(m24_id_dup,VisitType = NA , .after = "PREGID")
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m24_id_dup >1)) {
-    names(m24_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m24_id_dup <- add_column(m24_id_dup,Form = "MNH24")
-  
-  ## only need to include 1 instance of the duplicate
-  m24_id_dup <- m24_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m24_id_dup >1)){
-    VarNamesDuplicate_Inf <- m24_id_dup
-  }
-}
+## rbind all visits together
+forms_fetal_biomery_all_visits <- bind_rows(forms_fetal_biomery_visit1, forms_fetal_biomery_other_visits)
+forms_fetal_biomery_all_visits <- forms_fetal_biomery_all_visits %>% 
+  relocate("GestAge_Days", .after = "PREGID") %>% 
+  select(-contains("US_GA_WKS_AGE_FTS"), -contains("US_GA_DAYS_AGE_FTS")) %>% 
+  mutate_all(as.character) %>% 
+  pivot_longer(cols = -c(1:6), 
+               names_to = "varname", values_to = "response") %>% 
+  rename(VisitDate = "US_OHOSTDAT") %>% 
+  ## make sure GA is floored 
+  mutate(GestAge_Days = floor(as.numeric(GestAge_Days)))
 
-#****************************************
-#* MNH25
-#****************************************
-if (exists("mnh25")==TRUE){
-  ## replaced TYPE_VISIT with ANC_VISIT_N
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m25_id_dup <- dup_MOM_PREG_TV(mnh25)
-  
-  # export key variables if duplicates exists 
-  m25_id_dup <- m25_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, OBSSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m25_id_dup >1)) {
-    m25_id_dup = cbind(SCRNID = "NA", m25_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m25_id_dup >1)) {
-    names(m25_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m25_id_dup <- add_column(m25_id_dup,Form = "MNH25")
-  
-  ## only need to include 1 instance of the duplicate
-  m25_id_dup <- m25_id_dup %>% unique() 
-  
-  #*bind with other forms
-  if (nrow(m25_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m25_id_dup)
-  }
-}
-#****************************************
-#* MNH26
-#****************************************
-if (exists("mnh26")==TRUE){
-  
-  dup_MOM_PREG_TV <- function(form) {
-    ID <- form %>% 
-      select(MOMID, PREGID, TYPE_VISIT)
-    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-      arrange(MOMID, PREGID, TYPE_VISIT) 
-    dupID <-print(dup, n=nrow(dup), na.print=NULL)
-    return(dup)
-  }
-  
-  m26_id_dup <- dup_MOM_PREG_TV(mnh26)
-  
-  # export key variables if duplicates exists 
-  m26_id_dup <- m26_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, FTGE_OBSTDAT)
-  
-  # add SCRNID column if duplicates exist 
-  if (length(m26_id_dup >1)) {
-    m26_id_dup = cbind(SCRNID = "NA", m26_id_dup)
-  }
-  
-  # rename columns if duplicates exist 
-  if (length(m26_id_dup >1)) {
-    names(m26_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
-  }
-  
-  # add form column 
-  m26_id_dup <- add_column(m26_id_dup,Form = "MNH26")
-  
-  ## only need to include 1 instance of the duplicate
-  m26_id_dup <- m26_id_dup %>% unique() 
-  
-  
-  #*bind with other forms
-  if (nrow(m26_id_dup >1)){
-    VarNamesDuplicate <- rbind(VarNamesDuplicate, m26_id_dup)
-  }
-}
+## merge fetal biometry excel sheet and the data 
+forms_fetal_biomery_ranges <- merge(forms_fetal_biomery_all_visits, fetalRange_sheet, by = "GestAge_Days")
 
-#****************************************
-#* ADJUST FOR VISIT TYPE = 13
-#****************************************
-## since a woman can have multiple visit type = 13 for each form, we need to find any duplicate women who have the same visit type = 13 AND visit date
-# create new sub dataset so extract visit type 13 
-VarNamesDuplicate_visit13 = VarNamesDuplicate %>%  filter(VisitType == 13)
+# query BPD 
+bpd <- c("BPD_PERES_01_FTS1", "BPD_PERED_01_FTS1", "BPD_PERED_01_FTS1", "BPD_PERED_01_FTS1", ## first measurement of bpd 
+         "BPD_PERES_02_FTS1", "BPD_PERED_02_FTS1", "BPD_PERED_02_FTS1", "BPD_PERED_02_FTS1", ## second measurement of bpd 
+         "BPD_PERES_MEAN_FTS1", "BPD_PERES_MEAN_FTS2", "BPD_PERES_MEAN_FTS3", "BPD_PERES_MEAN_FTS4")## BPD mean 
 
-dup_visit_13 <- function(form) {
-  ID <- form %>% 
-    select(MOMID, PREGID, VisitDate)
-  dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-    arrange(MOMID, PREGID, VisitDate) 
-  dupID <-print(dup, n=nrow(dup), na.print=NULL)
-  return(dup)
-}
+forms_fetal_biomery_bpd <- forms_fetal_biomery_ranges %>% filter(varname %in% bpd, response !=-7) ## remove default value
+forms_fetal_biomery_bpd$outrange <- ifelse((forms_fetal_biomery_bpd$response >= forms_fetal_biomery_bpd$bpd_min & forms_fetal_biomery_bpd$response <= forms_fetal_biomery_bpd$bpd_max) | forms_fetal_biomery_bpd$response!= "-7", "", forms_fetal_biomery_bpd$response)
 
-# this will produce the list of true duplicate visit type = 13s that have the same visit day 
-dup_visit_13_out <- dup_visit_13(VarNamesDuplicate_visit13)
+# query HC
+hc <- c("HC_PERES_01_FTS1", "HC_PERED_01_FTS1", "HC_PERED_01_FTS1", "HC_PERED_01_FTS1", ## first measurement of HC
+        "HC_PERES_02_FTS1", "HC_PERED_02_FTS1", "HC_PERED_02_FTS1", "HC_PERED_02_FTS1", ## second measurement of HC
+        "HC_PERES_MEAN_FTS1", "HC_PERES_MEAN_FTS2", "HC_PERES_MEAN_FTS3", "HC_PERES_MEAN_FTS4") ## HC mean 
 
-# to finalize the duplicate query output, we need to replace the old visit type = 13 queries pull and replace with these new queries 
-# step 1. remove old visit = 13 queries pulled from all of the codes above
-VarNamesDuplicate = VarNamesDuplicate %>% filter(VisitType != 13) ## keep everything but visit type = 13
-# step 2. re-bind the visit type = 13 that we just fixed 
-VarNamesDuplicate = rbind(VarNamesDuplicate, VarNamesDuplicate_visit13)
+forms_fetal_biomery_hc <- forms_fetal_biomery_ranges %>% filter(varname %in% hc, response !=-7)
+forms_fetal_biomery_hc$outrange <- ifelse((forms_fetal_biomery_hc$response >= forms_fetal_biomery_hc$hc_min & forms_fetal_biomery_hc$response <= forms_fetal_biomery_hc$hc_max) | forms_fetal_biomery_hc$response!= "-7", "", forms_fetal_biomery_hc$response)
 
-# fix random issues with VarNamesDuplicate_Inf visit type class 
-VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
+# query AC 
+ac <- c("AC_PERES_01_FTS1", "AC_PERED_01_FTS1", "AC_PERED_01_FTS1", "AC_PERED_01_FTS1", ## first measurement of AC 
+        "AC_PERES_02_FTS1", "AC_PERED_02_FTS1", "AC_PERED_02_FTS1", "AC_PERED_02_FTS1", ## second measurement of AC 
+        "AC_PERES_MEAN_FTS1", "AC_PERES_MEAN_FTS2", "AC_PERES_MEAN_FTS3", "AC_PERES_MEAN_FTS4") ## AC mean
 
-#****************************************
-#* BIND ALL DATA FRAMES 
-#****************************************
-# add infant id column to momid dataframe 
-names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
-VarNamesDuplicate <- add_column(VarNamesDuplicate, INFANTID = NA, .after = "PREGID")
+forms_fetal_biomery_ac <- forms_fetal_biomery_ranges %>% filter(varname %in% ac, response !=-7)
+forms_fetal_biomery_ac$outrange <- ifelse((forms_fetal_biomery_ac$response >= forms_fetal_biomery_ac$ac_min & forms_fetal_biomery_ac$response <= forms_fetal_biomery_ac$ac_max) | forms_fetal_biomery_ac$response!= "-7", "", forms_fetal_biomery_ac$response)
 
-## update variable value variable name column to represent if the duplicate is a momid or scrnid 
-VarNamesDuplicate <- VarNamesDuplicate %>% 
-  mutate(`Variable Value` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , SCRNID, MOMID), 
-         `Variable Name` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , "ScrnID", "MomID"),
-         FieldType = "Text", 
-         EditType = "Duplicate ID"
-         )
+# query FL 
+fl <- c("FL_PERES_01_FTS1", "FL_PERED_01_FTS2", "FL_PERED_01_FTS3", "FL_PERED_01_FTS4", ## first measurement of FL 
+        "FL_PERES_02_FTS1", "FL_PERED_02_FTS2", "FL_PERED_02_FTS3", "FL_PERED_02_FTS4", ## second measurement of FL
+        "FL_PERES_MEAN_FTS1", "FL_PERES_MEAN_FTS2", "FL_PERES_MEAN_FTS3", "FL_PERES_MEAN_FTS4")  ## FL mean 
 
-## update variable value variable name column to represent the duplicate is an infant id 
-VarNamesDuplicate_Inf <- VarNamesDuplicate_Inf %>% 
-  mutate(`Variable Value` = INFANTID, 
-         `Variable Name` = "InfantID",
-         FieldType = "Text", 
-         EditType = ifelse(is.na(INFANTID),"InfantID missing from infant form", "Duplicate ID")
-  ) %>% 
-  mutate(VisitType = as.character(VarNamesDuplicate_Inf$VisitType))
+forms_fetal_biomery_fl <- forms_fetal_biomery_ranges %>% filter(varname %in% fl, response !=-7)
+forms_fetal_biomery_fl$outrange <- ifelse((forms_fetal_biomery_fl$response >= forms_fetal_biomery_fl$fl_min & forms_fetal_biomery_fl$response <= forms_fetal_biomery_fl$fl_max) | forms_fetal_biomery_fl$response!= "-7", "", forms_fetal_biomery_fl$response)
+# rbind all fetal biometry measurements 
+forms_fetal_biometry_all <- rbind(forms_fetal_biomery_bpd, forms_fetal_biomery_hc, forms_fetal_biomery_ac, forms_fetal_biomery_fl)
 
-## bind in duplicate infant ids
-VarNamesDuplicate <- bind_rows(VarNamesDuplicate, VarNamesDuplicate_Inf) %>% unique()
-VarNamesDuplicate <- VarNamesDuplicate %>% filter(!(is.na(MOMID)))
+# make edit message 
+forms_fetal_biometry_all$editmessage <- ifelse(forms_fetal_biometry_all$outrange == "", "NoError", "Out of Range")
+
+# filter out those that are out of range 
+forms_fetal_biometry_query <- forms_fetal_biometry_all %>% filter(editmessage == "Out of Range")
+
+## only keep the first 7 columns 
+forms_fetal_biometry_query = forms_fetal_biometry_query %>% select(SCRNID, MOMID, PREGID, TYPE_VISIT, VisitDate, varname, response)
+
+## add infant ID  column
+forms_fetal_biometry_query <- add_column(forms_fetal_biometry_query, InfantID = NA , .after = "PREGID")
+
+## add form column
+forms_fetal_biometry_query <- add_column(forms_fetal_biometry_query, Form = "MNH01" , .after = "VisitDate")
+
+FetalBioRangeQuery_Export <- forms_fetal_biometry_query
 
 # update naming
-VarNamesDuplicate = VarNamesDuplicate[-1,]
-names(VarNamesDuplicate) = c("ScrnID","MomID", "PregID","InfantID", "VisitType", "VisitDate", "Form", "Variable Name", "Variable Value", "FieldType", "EditType")
+names(FetalBioRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
-VarNamesDuplicate = cbind(QueryID = NA, 
-                          UploadDate = UploadDate, 
-                          #MomID = "NA", PregID = "NA",
-                          #VisitDate = "NA", 
-                          VarNamesDuplicate, 
-                          #`Variable Name` = "NA",
-                          #`Variable Value` = "NA",
-                          #FieldType = "Text", 
-                          #EditType = "Duplicate ID", 
-                          DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-# combine form/edit type var 
-VarNamesDuplicate$Form_Edit_Type <- paste(VarNamesDuplicate$Form,"_",VarNamesDuplicate$EditType)
+if (nrow(FetalBioRangeQuery_Export)>=1){
+  FetalBioRangeQuery_Export = cbind(QueryID = NA, 
+                                    UploadDate = UploadDate, 
+                                    #MomID = "NA", PregID = "NA",
+                                    #VisitDate = "NA", 
+                                    FetalBioRangeQuery_Export, 
+                                    #`Variable Name` = "NA",
+                                    FieldType = "Number", 
+                                    EditType = "Out of Range", 
+                                    DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
 
-## assign queryid -- edit type id for duplicate IDs is 01 
-VarNamesDuplicate <- VarNamesDuplicate %>% 
-  mutate(QueryID = paste0(Form, "_", VisitDate, "_",`Variable Name`, "_", `Variable Value`, "_", "01")
-         )
-
-duplicates_query <- VarNamesDuplicate
-
-#export
-save(duplicates_query, file = paste0(path_to_save, "duplicates_query.rda"))
+if (nrow(FetalBioRangeQuery_Export)>=1){
+  FetalBioRangeQuery_Export$`Variable Value` = as.character(FetalBioRangeQuery_Export$`Variable Value`)
+}
 
 #*****************************************************************************
-#* Maternal Protocol check - do all enrolled participants have a MNH02 enrollment form 
+#*Categorical Variable Queries 
+  # this query will flag any responses reported in the data that do not match the valid response options in the data dictionary (column: Response Options, Value)
 #*****************************************************************************
-## extract MOMIDs in enrollment form 
-enroll_momid <- data_long %>% filter(form == "MNH02")
-enroll_momid_vec <- as.vector(unique(enroll_momid$MOMID))
+## merge data dictionary and site data  
+invalid_response_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
 
-## extract MOMIDs in all forms 
-all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01")
+## make vector of MNH25 forms - we will check these separately at the end 
+m25_forms = c("MNH25_Ghana", "MNH25_India", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan")
+invalid_response_categorical <- invalid_response_merge %>% filter(`Query Category` == "Number", !(form %in% m25_forms))
 
-## subset all MOMIDs that have forms 03-25 but not enrollment 
-out<-subset(all_momid, !(all_momid$MOMID %in% enroll_momid$MOMID))
+# make the response range a vector 
+invalid_response_categorical$response_range = as.vector(c(invalid_response_categorical$`ResponseRange`))
 
-## only need the first four columns
-out <- out %>% select(SCRNID, MOMID, PREGID, INFANTID)
+# run the query
+invalid_response_categorical$in_range <- apply(invalid_response_categorical,1, function(x){
+  grepl(x["response"], x["response_range"])
+})
 
-## only need to keep 1 instance of the MOMID 
-out <- out %>% distinct(MOMID, PREGID, INFANTID,  .keep_all = TRUE)
+# make edit message 
+invalid_response_categorical$editmessage <- ifelse(invalid_response_categorical$in_range == "FALSE", "Invalid Response Option", "No Error") 
 
-# rename dataframe 
-MomidNotMatched <- out
+# filter out those that are out of range 
+invalid_response_categorical_query <- invalid_response_categorical %>% filter(editmessage == "Invalid Response Option")
+
+# get tab of variables that have default values -- this will not be exported, but is a good check to ensure there are not an unreasonable amount of default values
+default_values <- c("55", "88", "77", "99", "66")
+invalid_response_default_value <- invalid_response_categorical %>% 
+  group_by(varname) %>% 
+  add_count(name = "n_total") %>%                    ## get the total count for each variable 
+  filter(editmessage == "Invalid Response Option") %>%          ## only look at the variables that do not include default values in the response options
+  group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
+  count(name ="n_response") %>%                      ## count the number each specific response is reported 
+  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
+  filter(response %in% default_values)               ## exclude to only the default values 
+
+# remove default values for query but will review at the end of script 
+invalid_response_categorical_query <- invalid_response_categorical_query %>% filter(!(response %in% default_values)) 
+
+# remove MNH25 variables -- we will check these later 
+invalid_response_categorical_query <- invalid_response_categorical_query %>% filter(form != "MNH25")
+
+## only keep the first 7 columns 
+InvalidResponseCategoricalQuery_Export = invalid_response_categorical_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
 
 # update naming
-names(MomidNotMatched) = c("ScrnID","MomID", "PregID","InfantID")
+names(InvalidResponseCategoricalQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+
+## add additional columns 
+if (nrow(InvalidResponseCategoricalQuery_Export)>=1){
+  InvalidResponseCategoricalQuery_Export = cbind(QueryID = NA, 
+                                                 UploadDate = UploadDate, 
+                                                 #MomID = "NA", PregID = "NA",
+                                                 #VisitDate = "NA", 
+                                                 InvalidResponseCategoricalQuery_Export, 
+                                                 #`Variable Name` = "NA",
+                                                 FieldType = "Number", 
+                                                 EditType = "Invalid Response Option", 
+                                                 DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
+
+if (nrow(InvalidResponseCategoricalQuery_Export)>=1){
+  InvalidResponseCategoricalQuery_Export$`Variable Value` = as.character(InvalidResponseCategoricalQuery_Export$`Variable Value`)
+}
+#*****************************************************************************
+#*Continuous 
+  # this query will extract any continuous variables (typically lab values) that are outside the min and max set in the data dictionary
+#*****************************************************************************
+# extract continuous variables from the data dictionary 
+## make vector of MNH25 forms - we will check these separately at the end 
+m25_forms = c("MNH25_Ghana", "MNH25_India", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan")
+requested_varNames_out <- varNames_sheet %>% filter(`Query Category` == "Continuous" & (!is.na(`Minimum Value`) | !is.na(`Maximum Value`)), 
+                                                    !(`varname` %in% fetal_biometry_vars), !(form %in% m25_forms)) 
+form_num = toupper(form_num)
+
+
+requested_varNames_out_var <- requested_varNames_out %>% filter(form %in% form_num) %>% 
+  pull(varname)
+
+# extract the continuous variables that don't have min max values -- save for later 
+requested_varNames_Nominmax <- varNames_sheet %>% filter(`Query Category` == "Continuous" & (is.na(`Minimum Value`) | is.na(`Maximum Value`)))
+
+# extract continuous variables from the data 
+forms_con <- data_long %>% filter(varname %in% requested_varNames_out_var)
+
+# merge together the min/max value columns 
+requested_varNames_out_w_MinMax <- requested_varNames_out %>% dplyr::select(form, `varname`, `Minimum Value`, `Maximum Value`) #`DefaultValue`)
+names(requested_varNames_out_w_MinMax) = c("form", "varname", "min", "max") #, "DefaultValue")
+forms_con_merged <- merge(forms_con, requested_varNames_out_w_MinMax, by = c("form", "varname"))
+
+# make sure response options, min, and max values are numeric 
+forms_con_merged$response = as.numeric(forms_con_merged$response)
+forms_con_merged$min = as.numeric(forms_con_merged$min)
+forms_con_merged$max = as.numeric(forms_con_merged$max)
+#forms_con_merged$DefaultValue = as.numeric(forms_con_merged$DefaultValue)
+
+# query -- if greater than min and lower than max column or does not equaly the default value 
+forms_con_merged$outrange <- ifelse((forms_con_merged$response >= forms_con_merged$min & forms_con_merged$response <= forms_con_merged$max), "", forms_con_merged$response)
+
+# make edit message 
+forms_con_merged$editmessage <- ifelse(forms_con_merged$outrange == "", "NoError", "Out of Range")
+
+# filter out those that are out of range 
+forms_con_query <- forms_con_merged %>% filter(editmessage == "Out of Range")
+
+# get tab of variables that have default values 
+default_values_continuous <- as.numeric(c("-5", "-8", "-7", "-9", "-6"))
+out_range_default_value_continuous <- forms_con_merged %>% 
+  group_by(varname) %>% 
+  add_count(name = "n_total") %>%                    ## get the total count for each variable 
+  filter(editmessage == "Out of Range") %>%          ## only look at the variables that do not include default values in the resposne options
+  group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
+  count(name ="n_response") %>%                      ## count the number each specific response is reported 
+  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
+  filter(response %in% default_values_continuous)    ## exclude to only the default values 
+
+# remove default values from query, but will review tabulation at end of script 
+forms_con_query <- forms_con_query %>% filter(!(response %in% default_values_continuous))
+
+## only keep the first 7 columns 
+forms_con_query <- forms_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+ConRangeQuery_Export <- forms_con_query
+
+
+# remove fetal biometry variables from this query since we checked them earlier 
+ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(!(varname %in% fetal_biometry_vars))
+
+# remove MNH25 variables -- we will check these later 
+ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(form != "MNH25")
+
+# update naming
+names(ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+
+## add additional columns 
+
+if (nrow(ConRangeQuery_Export)>=1){
+  
+  ConRangeQuery_Export = cbind(QueryID = NA, 
+                               UploadDate = UploadDate, 
+                               #MomID = "NA", PregID = "NA",
+                               #VisitDate = "NA", 
+                               ConRangeQuery_Export, 
+                               #`Variable Name` = "NA",
+                               FieldType = "Number", 
+                               EditType = "Out of Range", 
+                               DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
+
+if (nrow(ConRangeQuery_Export)>=1){
+  ConRangeQuery_Export$`Variable Value` = as.character(ConRangeQuery_Export$`Variable Value`)
+}
+#*****************************************************************************
+#*Dates 
+#* EDD before visit date 
+#* Visit dates after today's date  
+#*****************************************************************************
+## EDD before visit date/today's date 
+# extract date variables from the data dictionary 
+requested_varNames_out_edd <- varNames_sheet %>% filter(`Query Category` == "Date",
+                                                        str_detect(varname, "EDD")) 
+form_num = toupper(form_num)
+requested_varNames_out_var <- requested_varNames_out_edd %>% filter(form %in% form_num) %>% 
+  pull(varname)
+
+# get a list of women who have delivered - we want to remove them from this query about EDD 
+birth_outcome_vars = c("BIRTH_DSTERM_INF1", "BIRTH_DSTERM_INF2", "BIRTH_DSTERM_INF3", "BIRTH_DSTERM_INF4")
+delivered_momids <- data_long  %>% filter(varname %in% birth_outcome_vars) %>% filter(response == 1 | response == 2) %>% pull(MOMID)
+
+# extract date variables from the data 
+edd_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var, !(MOMID %in% delivered_momids))
+
+# make the response range dates 
+edd_out_range$response = ymd(parse_date_time(edd_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))))
+
+# run the query for any dates that are after today 
+edd_out_range$outrange = ifelse(edd_out_range$response <= Sys.Date() & 
+                                  edd_out_range$response != "1907-07-07", "TRUE", "FALSE")
+
+# make edit message 
+edd_out_range$editmessage <- ifelse(edd_out_range$outrange == "TRUE", "Out of Range", "No Error") 
+
+# filter out those that are out of range 
+edd_out_range_query <- edd_out_range %>% filter(editmessage == "Out of Range")
+
+## query any other dates/visit dates that occur after today's date 
+# extract date variables from the data dictionary 
+# first need to get all the edd variables and exclude 
+requested_varNames_out_edd <- requested_varNames_out_edd %>% pull(varname)
+requested_varNames_out <- varNames_sheet %>% filter(`Query Category` == "Date",
+                                                    !(`varname` %in% fetal_biometry_vars), 
+                                                    !(`varname` %in% requested_varNames_out_edd)) 
+form_num = toupper(form_num)
+requested_varNames_out_var <- requested_varNames_out %>% filter(form %in% form_num) %>% 
+  pull(varname)
+
+# extract date variables from the data 
+date_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var)
+
+# make the response range dates 
+date_out_range$response = ymd(parse_date_time(date_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))))
+
+# run the query for any visit dates that are after today 
+date_out_range_vist <- date_out_range
+date_out_range_vist$outrange = ifelse(date_out_range_vist$response >= Sys.Date() & 
+                                        date_out_range_vist$response != "1907-07-07", "TRUE", "FALSE")
+
+# run the query for any dates that are after today for remainder of variables
+date_out_range_nonvisit_query = date_out_range
+date_out_range_nonvisit_query$outrange = ifelse(date_out_range_nonvisit_query$response >= Sys.Date() & 
+                                                  date_out_range_nonvisit_query$response != "1907-07-07", "TRUE", "FALSE")
+
+# make edit message 
+date_out_range_vist$editmessage <- ifelse(date_out_range_vist$outrange == "TRUE", "Out of Range", "No Error") 
+date_out_range_nonvisit_query$editmessage <- ifelse(date_out_range_nonvisit_query$outrange == "TRUE", "Out of Range", "No Error") 
+
+# filter out those that are out of range 
+date_out_range_visit_query <- date_out_range_vist %>% filter(editmessage == "Out of Range")
+date_out_range_nonvisit_query <- date_out_range_nonvisit_query %>% filter(editmessage == "Out of Range")
+
+# rbind non-edd date queries 
+date_out_range_query_subset <- rbind(date_out_range_nonvisit_query, date_out_range_visit_query)
+
+## rbind all date queries here 
+date_out_range_query <- rbind(date_out_range_query_subset, edd_out_range_query)
+
+# get tab of variables that have default values 
+default_values <- c("1907-07-07", "07/07/1907", "07-07-1907")
+out_range_default_value_date <- date_out_range_query %>% 
+  group_by(varname) %>% 
+  add_count(name = "n_total") %>%                    ## get the total count for each variable 
+  filter(editmessage == "Out of Range") %>%          ## only look at the variables that do not include default values in the resposne options
+  group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
+  count(name ="n_response") %>%                      ## count the number each specific response is reported 
+  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
+  filter(response %in% default_values)               ## exclude to only the default values 
+
+# remove default values for query but will review at the end of script 
+date_out_range_query <- date_out_range_query %>% filter(!(response %in% default_values)) 
+
+# remove MNH25 variables -- we will check these later 
+date_out_range_query <- date_out_range_query %>% filter(form != "MNH25")
+
+## only keep the first 7 columns 
+OutRangeDateQuery_Export = date_out_range_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+
+# update naming
+names(OutRangeDateQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+
+## add additional columns 
+if (nrow(OutRangeDateQuery_Export)>=1){
+  OutRangeDateQuery_Export = cbind(QueryID = NA, 
+                                   UploadDate = UploadDate, 
+                                   #MomID = "NA", PregID = "NA",
+                                   #VisitDate = "NA", 
+                                   OutRangeDateQuery_Export, 
+                                   #`Variable Name` = "NA",
+                                   FieldType = "Date", 
+                                   EditType = "Out of Range", 
+                                   DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
+
+if (nrow(OutRangeDateQuery_Export)>=1){
+  OutRangeDateQuery_Export$`Variable Value` = as.character(OutRangeDateQuery_Export$`Variable Value`)
+}
+
+#*****************************************************************************
+#*MNH25 Variable Queries 
+#*****************************************************************************
+# Set MNH25 form
+mnh25_to_exclude <- c("MNH25_Ghana", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan", "MNH25_India") # make a vector of all MNH25 forms 
+mnh25_to_exclude <- mnh25_to_exclude[!grepl(paste0(site), mnh25_to_exclude)] # exclude the form of the site we are currently running. We will this to filter out all the forms we DONT need from the data dictionary
+
+varNames_sheet <- varNames_sheet %>%
+  filter(!(form %in% mnh25_to_exclude))
+
+if (site=="Kenya"){
+  
+  # extract continuous variables from the data dictionary 
+  requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Kenya") 
+  form_num = toupper(form_num)
+  requested_varNames_out_var <- requested_varNames_out %>%
+    filter(`Query Category` == "Continuous") %>% 
+    pull(varname)
+  
+  # extract continuous variables from the data 
+  forms_dep <- data_long %>% filter(varname %in% requested_varNames_out_var)
+  
+  # look at continuous range and query 
+  mnh25_con <- forms_dep %>% filter(varname == "EPDS01_SCORRES")
+  mnh25_con$editmessage <- ifelse(as.numeric(mnh25_con$response) >= 0 & as.numeric(mnh25_con$response) <= 30, "NoError", "Out of Range")
+  
+  # filter out those that are out of range 
+  mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
+  
+  ## only keep the first 7 columns 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  M25_ConRangeQuery_Export <- mnh25_con_query
+  
+  # update naming
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  
+  if (nrow(M25_ConRangeQuery_Export)>=1){
+    
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+  # extract categorical variables from the data dictionary 
+  
+  ## merge data dictionary and site data  
+  out_range_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+  out_range_numeric_M25 <- out_range_merge %>% filter(`Query Category` == "Number", form == "MNH25_Kenya")
+  
+  # make the response range a vector 
+  out_range_numeric_M25$response_range = as.vector(c(out_range_numeric_M25$`ResponseRange`))
+  
+  # run the query
+  out_range_numeric_M25$in_range <- apply(out_range_numeric_M25,1, function(x){
+    grepl(x["response"], x["response_range"])
+  })
+  
+  # make edit message 
+  out_range_numeric_M25$editmessage <- ifelse(out_range_numeric_M25$in_range == "FALSE", "Out of Range", "No Error") 
+  
+  # filter out those that are out of range 
+  out_range_numeric_M25_query <- out_range_numeric_M25 %>% filter(editmessage == "Out of Range")
+  
+  # remove default values for query but will review at the end of script 
+  default_values <- c("55", "88", "77", "99", "66")
+  out_range_numeric_M25_query <- out_range_numeric_M25_query %>% filter(!(response %in% default_values)) 
+  
+  
+  ## only keep the first 7 columns 
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  
+  # update naming
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+}
+
+if (site=="Pakistan"){
+  
+  # extract continuous variables from the data dictionary 
+  requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Pakistan") 
+  form_num = toupper(form_num)
+  requested_varNames_out_var <- requested_varNames_out %>%
+    filter(`Query Category` == "Continuous") %>% 
+    pull(varname)
+  
+  # extract continuous variables from the data 
+  forms_dep <- data_long %>% filter(varname %in% requested_varNames_out_var)
+  
+  # look at continuous range and query 
+  mnh25_con <- forms_dep %>% filter(varname == "EPDS01_SCORRES")
+  mnh25_con$editmessage <- ifelse(as.numeric(mnh25_con$response) >= 0 & as.numeric(mnh25_con$response) <= 30, "NoError", "Out of Range")
+  
+  # filter out those that are out of range 
+  mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
+  
+  ## only keep the first 7 columns 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  M25_ConRangeQuery_Export <- mnh25_con_query
+  
+  # update naming
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  
+  if (nrow(M25_ConRangeQuery_Export)>=1){
+    
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+  # extract categorical variables from the data dictionary 
+  
+  ## merge data dictionary and site data  
+  out_range_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+  out_range_numeric_M25 <- out_range_merge %>% filter(`Query Category` == "Number", form == "MNH25_Pakistan")
+  
+  # make the response range a vector 
+  out_range_numeric_M25$response_range = as.vector(c(out_range_numeric_M25$`ResponseRange`))
+  
+  # run the query
+  out_range_numeric_M25$in_range <- apply(out_range_numeric_M25,1, function(x){
+    grepl(x["response"], x["response_range"])
+  })
+  
+  # make edit message 
+  out_range_numeric_M25$editmessage <- ifelse(out_range_numeric_M25$in_range == "FALSE", "Out of Range", "No Error") 
+  
+  # filter out those that are out of range 
+  out_range_numeric_M25_query <- out_range_numeric_M25 %>% filter(editmessage == "Out of Range")
+  
+  # remove default values for query but will review at the end of script 
+  default_values <- c("55", "88", "77", "99", "66")
+  out_range_numeric_M25_query <- out_range_numeric_M25_query %>% filter(!(response %in% default_values)) 
+  
+  
+  ## only keep the first 7 columns 
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  
+  # update naming
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+}
+
+if (site=="Ghana"){
+  
+  # extract continuous variables from the data dictionary 
+  requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Ghana") 
+  form_num = toupper(form_num)
+  requested_varNames_out_var <- requested_varNames_out %>%
+    filter(`Query Category` == "Continuous") %>% 
+    pull(varname)
+  
+  # extract continuous variables from the data 
+  forms_dep <- data_long %>% filter(varname %in% requested_varNames_out_var)
+  
+  # look at continuous range and query 
+  mnh25_con <- forms_dep %>% filter(varname == "EPDS01_SCORRES")
+  mnh25_con$editmessage <- ifelse(as.numeric(mnh25_con$response) >= 0 & as.numeric(mnh25_con$response) <= 30, "NoError", "Out of Range")
+  
+  # filter out those that are out of range 
+  mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
+  
+  ## only keep the first 7 columns 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  M25_ConRangeQuery_Export <- mnh25_con_query
+  
+  # update naming
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  
+  if (nrow(M25_ConRangeQuery_Export)>=1){
+    
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+  # extract categorical variables from the data dictionary 
+  
+  ## merge data dictionary and site data  
+  out_range_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+  out_range_numeric_M25 <- out_range_merge %>% filter(`Query Category` == "Number", form == "MNH25_Ghana")
+  
+  # make the response range a vector 
+  out_range_numeric_M25$response_range = as.vector(c(out_range_numeric_M25$`ResponseRange`))
+  
+  # run the query
+  out_range_numeric_M25$in_range <- apply(out_range_numeric_M25,1, function(x){
+    grepl(x["response"], x["response_range"])
+  })
+  
+  # make edit message 
+  out_range_numeric_M25$editmessage <- ifelse(out_range_numeric_M25$in_range == "FALSE", "Out of Range", "No Error") 
+  
+  # filter out those that are out of range 
+  out_range_numeric_M25_query <- out_range_numeric_M25 %>% filter(editmessage == "Out of Range")
+  
+  # remove default values for query but will review at the end of script 
+  default_values <- c("55", "88", "77", "99", "66")
+  out_range_numeric_M25_query <- out_range_numeric_M25_query %>% filter(!(response %in% default_values)) 
+  
+  
+  ## only keep the first 7 columns 
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  
+  # update naming
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+}
+
+if (site=="Zambia"){
+  
+  # extract continuous variables from the data dictionary 
+  requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Zambia") 
+  form_num = toupper(form_num)
+  requested_varNames_out_var <- requested_varNames_out %>%
+    filter(`Query Category` == "Continuous") %>% 
+    pull(varname)
+  
+  # extract continuous variables from the data 
+  forms_dep <- data_long %>% filter(varname %in% requested_varNames_out_var)
+  
+  # look at continuous range and query 
+  mnh25_con <- forms_dep %>% filter(varname == "EPDS01_SCORRES")
+  mnh25_con$editmessage <- ifelse(as.numeric(mnh25_con$response) >= 0 & as.numeric(mnh25_con$response) <= 30, "NoError", "Out of Range")
+  
+  # filter out those that are out of range 
+  mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
+  
+  ## only keep the first 7 columns 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  M25_ConRangeQuery_Export <- mnh25_con_query
+  
+  # update naming
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  
+  if (nrow(M25_ConRangeQuery_Export)>=1){
+    
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+  # extract categorical variables from the data dictionary 
+  
+  ## merge data dictionary and site data  
+  out_range_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+  out_range_numeric_M25 <- out_range_merge %>% filter(`Query Category` == "Number", form == "MNH25_Zambia")
+  
+  # make the response range a vector 
+  out_range_numeric_M25$response_range = as.vector(c(out_range_numeric_M25$`ResponseRange`))
+  
+  # run the query
+  out_range_numeric_M25$in_range <- apply(out_range_numeric_M25,1, function(x){
+    grepl(x["response"], x["response_range"])
+  })
+  
+  # make edit message 
+  out_range_numeric_M25$editmessage <- ifelse(out_range_numeric_M25$in_range == "FALSE", "Out of Range", "No Error") 
+  
+  # filter out those that are out of range 
+  out_range_numeric_M25_query <- out_range_numeric_M25 %>% filter(editmessage == "Out of Range")
+  
+  # remove default values for query but will review at the end of script 
+  default_values <- c("55", "88", "77", "99", "66")
+  out_range_numeric_M25_query <- out_range_numeric_M25_query %>% filter(!(response %in% default_values)) 
+  
+  
+  ## only keep the first 7 columns 
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  
+  # update naming
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+}
+
+
+if (site=="India"){
+  
+  # extract continuous variables from the data dictionary 
+  requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_India") 
+  form_num = toupper(form_num)
+  requested_varNames_out_var <- requested_varNames_out %>%
+    filter(`Query Category` == "Continuous") %>% 
+    pull(varname)
+  
+  # extract continuous variables from the data 
+  forms_dep <- data_long %>% filter(varname %in% requested_varNames_out_var)
+  
+  # look at continuous range and query 
+  mnh25_con <- forms_dep %>% filter(varname == "EPDS01_SCORRES")
+  mnh25_con$editmessage <- ifelse(as.numeric(mnh25_con$response) >= 0 & as.numeric(mnh25_con$response) <= 30, "NoError", "Out of Range")
+  
+  # filter out those that are out of range 
+  mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
+  
+  ## only keep the first 7 columns 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  M25_ConRangeQuery_Export <- mnh25_con_query
+  
+  # update naming
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  
+  if (nrow(M25_ConRangeQuery_Export)>=1){
+    
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+  # extract categorical variables from the data dictionary 
+  
+  ## merge data dictionary and site data  
+  out_range_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+  out_range_numeric_M25 <- out_range_merge %>% filter(`Query Category` == "Number", form == "MNH25_India")
+  
+  # make the response range a vector 
+  out_range_numeric_M25$response_range = as.vector(c(out_range_numeric_M25$`ResponseRange`))
+  
+  # run the query
+  out_range_numeric_M25$in_range <- apply(out_range_numeric_M25,1, function(x){
+    grepl(x["response"], x["response_range"])
+  })
+  
+  # make edit message 
+  out_range_numeric_M25$editmessage <- ifelse(out_range_numeric_M25$in_range == "FALSE", "Out of Range", "No Error") 
+  
+  # filter out those that are out of range 
+  out_range_numeric_M25_query <- out_range_numeric_M25 %>% filter(editmessage == "Out of Range")
+  
+  # remove default values for query but will review at the end of script 
+  default_values <- c("55", "88", "77", "99", "66")
+  out_range_numeric_M25_query <- out_range_numeric_M25_query %>% filter(!(response %in% default_values)) 
+  
+  
+  ## only keep the first 7 columns 
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  
+  # update naming
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  
+  ## add additional columns 
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  }
+  
+}
+
+
+if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+  M25_OutRangeNumericQuery_Export$`Variable Value` = as.character(M25_OutRangeNumericQuery_Export$`Variable Value`)
+}
+#*****************************************************************************
+#* Remove all emply dataframe 
+#* this means that the only data frames left are the ones with true queries   
+#*****************************************************************************
+
+## create a function that returns a logical value
+isEmpty <- function(x) {
+  is.data.frame(x) && nrow(x) == 0L
+}
+## apply it over the environment
+empty <- unlist(eapply(.GlobalEnv, isEmpty))
+
+## remove the empties
+rm(list = names(empty)[empty])
+
+## export 
+## bind forms
+out <- rbindlist(mget(ls(pattern = "*Query_Export$")))
+
+# combine form/edit type var -- will have to do for each of forms that have duplicates 
+out <- add_column(out, Form_Edit_Type=paste(out$Form,"_",out$EditType))
 
 # add visit type column 
-MomidNotMatched <- add_column(MomidNotMatched, VisitType = NA , .after = "InfantID")
+out = add_column(out, VisitType = NA , .after = "InfantID")
 
-if (dim(MomidNotMatched)[1] >= 1){
-  
-## add additional columns 
-MomidNotMatched_query = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              VisitDate = "NA", 
-                              MomidNotMatched, 
-                              Form = "NA",
-                              `Variable Name` = "NA",
-                              `Variable Value` = "NA",
-                              FieldType = "Text", 
-                              EditType = "MomID Missing Enrollment Form", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+OutRangeCheck_query <- out
+
+## assign queryid -- 
+# edit type id for out of range is 05 
+# edit type id for invalid response option is 09
+
+OutRangeCheck_query <- OutRangeCheck_query %>% 
+  mutate(QueryID = ifelse(EditType == "Invalid Response Option", paste0(Form, "_", VisitDate, "_",MomID, "_",`Variable Name`, "_", `Variable Value`, "_", "05"), 
+                          ifelse(EditType == "Out of Range", paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"), NA)
+  ))
+
+# export out of range queries
+save(OutRangeCheck_query, file = paste0(path_to_save, "OutRangeCheck_query.rda"))
 
 
-# combine form/edit type var 
-MomidNotMatched_query <- add_column(MomidNotMatched_query,Form_Edit_Type = paste(MomidNotMatched_query$EditType))
-
-# assign momid to the variable value column 
-MomidNotMatched_query <- MomidNotMatched_query %>% 
-  mutate(`Variable Value` = MomID, 
-         `Variable Name` = "MomID")
-
-## assign queryid -- edit type id missing enrollment form is 04
-MomidNotMatched_query <- MomidNotMatched_query %>% 
-  mutate(QueryID = paste0("MissingMNH02", "_", `Variable Name`, "_", `Variable Value`, "_", "04")
-  )
-
-#export Mom ID not matched query 
-save(MomidNotMatched_query, file = paste0(path_to_save, "MomidNotMatched_query.rda"))
-
-}
+## the follow tables show the % of responses that were default values that were NOT already included on the answer option
+# example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
+# if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
 
 #*****************************************************************************
-#* Infant Protocol check - are all infants represented in a delivery form
+#* EXTRA CODE FOR HIGH FREQUENCY VARAIABLES 
+#* Out of range queries that are pulled in high frequencies are pulled into a new tab in the query report 
+    ## this new tab will display what the error was, what the valid repsonse should be, and the frequency the query was pulled  
 #*****************************************************************************
-## Extract infant IDs in MNH09 
-deliv_infid <- data_long %>% filter(form == "MNH09")
-deliv_infid_vec <- as.vector(unique(deliv_infid$INFANTID))
+#This is to extract the Create more information for the High frequency Variables categorical and to include the response, count and expected response range 
+# Step 0: Extract the real queries 
 
-## extract infant IDs in all infant forms 
-infant_forms <- c("MNH11", "MNH13", "MNH14", "MNH15","MNH20", "MHNH24")
-all_infid <- data_long %>% filter(form %in% infant_forms)
+invalid_response_high_freq_query <- invalid_response_categorical # rename
 
-## subset all MOMIDs that have forms 11, 13, 14, 15, 20, & 24,  but not a delivery form 
-out<-subset(all_infid, !(all_infid$INFANTID %in% deliv_infid$INFANTID))
+## pull "invalid response option" queries (categorical)
+invalid_response_high_freq_query_filtered <- invalid_response_high_freq_query %>%
+  filter(editmessage == "Invalid Response Option")
 
-
-## only need the first four columns
-out <- out %>% select(SCRNID, MOMID, PREGID, INFANTID)
-
-## only need to keep 1 instance of the MOMID 
-out <- out %>% distinct(MOMID, PREGID, INFANTID,  .keep_all = TRUE)
-
-# rename dataframe
-InfidNotMatched <- out
-
-# update naming
-names(InfidNotMatched) = c("ScrnID","MomID", "PregID","InfantID")
-
-# current output will print every missing infant for each form FOR EACH VISIT - we only need it to print once. Fix below
-# we can do this by only select unique observations as defined by a unique momid, pregid, infantid, and form 
-# InfidNotMatched <- InfidNotMatched %>% distinct(MomID, PregID,InfantID, Form, .keep_all = TRUE)
-
-# add visit type column 
-InfidNotMatched <- add_column(InfidNotMatched, VisitType = NA , .after = "InfantID")
-
-if (dim(InfidNotMatched)[1] >= 1){
-  
-## add additional columns 
-InfidNotMatched = cbind(QueryID = NA, 
-                        UploadDate = UploadDate, 
-                        #MomID = "NA", PregID = "NA",
-                        VisitDate = "NA", 
-                        InfidNotMatched, 
-                        Form = "NA",
-                        `Variable Name` = "NA",
-                        `Variable Value` = "NA",
-                        FieldType = "Text", 
-                        EditType = "InfantID Missing Delivery Form", 
-                        DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-
-# combine form/edit type var 
-InfidNotMatched_query <- add_column(InfidNotMatched,Form_Edit_Type = paste(InfidNotMatched$EditType))
-
-# reassing momid to the variable value column 
-InfidNotMatched_query <- InfidNotMatched_query %>% 
-  mutate(`Variable Value` = InfantID, 
-         `Variable Name` = "InfantID")
-
-## assign queryid -- edit type id for infant missing delivery form is 07
-InfidNotMatched_query <- InfidNotMatched_query %>% 
-  mutate(QueryID = paste0("MissingMNH09", "_",`Variable Name`, "_", `Variable Value`, "_", "07")
-  )
+## filter out any default values. Since these are categorical variables, we expect the default values to be 77,55,88,99
+invalid_response_high_freq_query_filter <- invalid_response_high_freq_query_filtered %>%
+  filter(!(response %in% c("77", "55", "88", "99")))
 
 
-#export Infant ID not matched query 
-save(InfidNotMatched_query, file = paste0(path_to_save, "InfidNotMatched_query.rda"))
+#Step One: Get the count and group by response
+summary_output_1 <- invalid_response_high_freq_query_filter %>%  group_by(form, varname, response, `Query Category`) %>%
+  summarize(count = n())
 
-}
+#Step Two: Extract the unique responses present in the data for each variable 
+  # Example: there are n=100 participants who reported TYPE_VISIT = 15 and n=50 participants who reported TYPE_VISIT = -7; these will get 2 unique rows in the high frequency tab
+common_data <- invalid_response_high_freq_query_filter %>%
+  group_by(response, response_range, form, varname) %>%
+  summarize(response_range = unique(response_range))
+
+#Join the two data frames from Step One and Step Two above 
+OutRange_Invalid_Query_Summary <- inner_join(summary_output_1, common_data, by = c("form", "varname", "response")) %>% 
+  cbind(min = "*", max = "*", DefaultValue = "77, Not Applicable; 55, Missing Data Point", EditType ="Invalid Response") 
+
+## create "Recommendations" column that provides extra instruction on how to address query 
+OutRange_Invalid_Query_Summary <- OutRange_Invalid_Query_Summary %>%
+  mutate(Recommendations = ifelse(response %in% c("-7", "N/A", "n/a", "na", "NA", "Na"),
+                                  "Change default value to 77 if not applicable",
+                                  ifelse(response %in% c("-5"),
+                                         "Change default value to 55 if data point is missing",
+                                         "Input valid data within the Response Range Options")))
+
+#For Continuous Variables
+
+#Step One: Get the count and group by response
+summary_cont_1 <- forms_con_query %>% 
+  group_by(varname, form, response) %>% 
+  summarize(count = n())
+
+
+#Step Two: Get the common response range
+common_data_cont <- forms_con_merged %>%
+  group_by(min, max, response, form, varname) %>%
+  summarize(min = unique(min)) %>%
+  cbind(DefaultValue = " -5, Missing Data point; -7,Not Applicable; -9,Dont Know -6,Refused to Answer")
+
+# Join the two data frames
+OutRange_Cont_Query_Summary <- inner_join(summary_cont_1, common_data_cont, by = 
+                                            c("form", "varname", "response")) %>% cbind(response_range = "*") %>%  
+  subset((response < min) |  (response > max))
+
+
+# Convert response column in OutRange_Cont_Query_Summary to character
+OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary %>% 
+  mutate(response = as.character(response)) %>% 
+  mutate(min = as.character(min))  %>%  
+  mutate(max = as.character(max)) %>% 
+  add_column (EditType="Out of Range")
+
+## create "Recommendations" column that provides extra instruction on how to address query 
+OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary_1 %>%
+  mutate(Recommendations = ifelse(response == 77, 
+                                  "Change default value to -7, if not applicable", 
+                                  "Input valid data within the minimum and max range" ))
+
+
+# Inner join the two high frequency query data frames
+High_Freq_Invalid_extra_tab <- full_join(OutRange_Cont_Query_Summary_1, OutRange_Invalid_Query_Summary) %>%  filter(count > 40)
+
+High_Freq_Invalid_extra_tab <- add_column(High_Freq_Invalid_extra_tab, 'Form and Edit Type'=paste
+                                      (High_Freq_Invalid_extra_tab$form, "_", High_Freq_Invalid_extra_tab$`varname`,"_", 
+                                        High_Freq_Invalid_extra_tab$EditType, sep = ""))
+
+
+# export 
+save(High_Freq_Invalid_extra_tab, file = paste0(path_to_save, "High_Freq_Invalid_extra_tab.rda"))
