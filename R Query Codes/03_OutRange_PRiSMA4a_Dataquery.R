@@ -1,31 +1,15 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-
-#* Last updated: 15 June 2023
-       # Lines 529, 616, 703, 790, 878: Updated mnh25 codes by adding in a line extracting the continuous variables 
-       # Lines 537, 623, 710, 798, 886: Updated mnh25 codes by updated the EPDS score ranges (this was updated in data dictionary, but not in the codes; now is resolved)
-       # Lines 256-257 & 317-318: Added codes to remove all mnh25 variables from the continous and categorial variable checking codes 
+#* Last updated: 06 September 2023
 
 #*Input: Long data 
-#*Function: check for any out of range values  
+#*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
 #*Output: .rda file with all out of range values 
-#*****************************************************************************
-#* Items to Update before running script 
-#* You can copy and paste "UPDATE EACH RUN" to find where to update 
-
-#* 1. Update "UploadDate" 
-#* 2. Set "site" variable to the site you are running the query for 
-
-#* Once the previous lines of code are updated, you can start to run the script 
-
-#* Notes: 
-#* make sure the data dictionary and fetal biometry excel sheets are in the right folder
-#* At the end, 2 tables will appear -- these are to check for default values -- good just to eyeball them 
 
 #*****************************************************************************
-# clear environment 
-rm(list = ls())
+#* Data setup 
+#*****************************************************************************
 
 # load packages 
 library(tidyverse)
@@ -36,50 +20,47 @@ library(dplyr)
 library(data.table)
 library(lubridate)
 
-## UPDATE EACH RUN ## 
-# 1. Update "UploadDate" (this should match the folder name in synapse)
-# 2. Set "site" variable to the site you are running the query for 
-UploadDate = "2023-06-09"
-site = "Ghana"
+# UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
+UploadDate = "2023-08-25"
 
-# make reorder function to use for later 
-##rearrange columns 
+# UPDATE EACH RUN: Set "site" variable to the site you are running the query for 
+site = "Kenya"
+
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
+
+# UPDATE EACH RUN: load in the LONG data we generated from 00_DataImport code 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
+
+## UPDATE EACH RUN: set path to location where you want to save the query output below 
+path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
+
+#* import data dictionary
+varNames_sheet <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
+varNames_sheet <- varNames_sheet %>% dplyr::select(Form, `Variable Name`, `Response Options`,
+                                                   `Query Category`,`Value`, `Field Type (Date, Time, Number, Text)`,
+                                                   `Minimum Value`, `Maximum Value`) %>% 
+                                     mutate(`Variable Name` = toupper(varNames_sheet$`Variable Name`)) %>% 
+                                     rename("varname" = `Variable Name`, "form" = "Form", "ResponseRange" = `Value`)
+
+
+# import excel sheet with ranges for fetal biometry ranges. Valid ranges for these variables depend on gestational age -the excel sheet has the valid ranges by GA
+fetalRange_sheet <- read_excel("~/PRiSMAv2Data/Queries/fetal_biometry_range.xlsx")
+
+## create function to set column order 
 setcolfirst = function(DT, ...){
   nm = as.character(substitute(c(...)))[-1L]
   setcolorder(DT, c(nm, setdiff(names(DT), nm)))
 }
 
-#*****************************************************************************
-#* load data
-#*****************************************************************************
-## Set working directory to site-specific folder -- main folder
-setwd(paste0("~/PRiSMAv2Data/", site, "/", UploadDate, "/", sep = ""))
 
-## Load in long data 
-load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_long.Rdata", sep = "")) 
-
-## Load in wide data 
-load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
-#*****************************************************************************
-#*import data dictionary 
-#*****************************************************************************
-#* create excel work book 
-#varNames_sheet <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.2-FEB012023_Queries.xlsx")
-varNames_sheet <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
-varNames_sheet <- varNames_sheet %>% dplyr::select(Form, `Variable Name`, `Response Options`, `Query Category`,`Value`, `Field Type (Date, Time, Number, Text)`, `Minimum Value`, `Maximum Value`)
-varNames_sheet$`Variable Name` = toupper(varNames_sheet$`Variable Name`)
-
-## rename variables in data dictionary
-varNames_sheet <- varNames_sheet %>% rename("varname" = `Variable Name`, "form" = "Form", "ResponseRange" = `Value`)
 #*****************************************************************************
 #* Fetal Biometry Checks 
 #******************************************************************************
-#* CAL_GA_WKS_AGE_FTS1 -- estimated GA in days by ACOG 
 #* FL_PERES_01_FTS1; FL_PERES_MEAN_FTS1 
 #* AC_PERES_01_FTS1; AC_PERES_MEAN_FTS1
 #* HC_PERES_01_FTS1; HC_PERES_MEAN_FTS1
 #* BPD_PERES_01_FTS1; BPD_PERES_MEAN_FTS1
-fetalRange_sheet <- read_excel("~/PRiSMAv2Data/Queries/fetal_biometry_range.xlsx")
 
 ## will need to update US_TYPE or TYPE_VISIT depending on what sites are reporting 
 fetal_biometry_vars = c("SCRNID","MOMID","PREGID","US_OHOSTDAT", "TYPE_VISIT", "US_VISIT", 
@@ -99,17 +80,15 @@ fetal_biometry_vars = c("SCRNID","MOMID","PREGID","US_OHOSTDAT", "TYPE_VISIT", "
                         "BPD_PERES_MEAN_FTS1", "BPD_PERES_MEAN_FTS2", "BPD_PERES_MEAN_FTS3", "BPD_PERES_MEAN_FTS4") ## BPD mean 
 
 # extract fetal biometry  variables from the data 
-#forms_fetal_biomery <- data_long %>% filter(varname %in% fetal_biometry_vars)
 forms_fetal_biomery <- mnh01 %>% select(any_of(fetal_biometry_vars))
 
 # convert visit date variable to date class 
-forms_fetal_biomery$US_OHOSTDAT = parse_date_time(forms_fetal_biomery$US_OHOSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%m/%d/%Y %H:%M"))
-forms_fetal_biomery$US_OHOSTDAT = ymd(forms_fetal_biomery$US_OHOSTDAT)
+forms_fetal_biomery$US_OHOSTDAT = ymd(parse_date_time(forms_fetal_biomery$US_OHOSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d")))
 
 # extract ultrasound visit 1 and calculate GA_US_BASLINE_DAYS 
 forms_fetal_biomery_visit1 <- forms_fetal_biomery %>% 
   filter(TYPE_VISIT == 1) %>% 
-  ## identify max GA 
+  ## identify max GA by US  
   mutate(GA_US_DAYS_FTS1 =  ifelse(US_GA_WKS_AGE_FTS1!= -7 & US_GA_DAYS_AGE_FTS1 != -7,  (US_GA_WKS_AGE_FTS1 * 7 + US_GA_DAYS_AGE_FTS1), NA), 
          GA_US_DAYS_FTS2 =  ifelse(US_GA_WKS_AGE_FTS2!= -7 & US_GA_DAYS_AGE_FTS2 != -7,  (US_GA_WKS_AGE_FTS2 * 7 + US_GA_DAYS_AGE_FTS2), NA),
          GA_US_DAYS_FTS3 =  ifelse(US_GA_WKS_AGE_FTS3!= -7 & US_GA_DAYS_AGE_FTS3 != -7,  (US_GA_WKS_AGE_FTS3 * 7 + US_GA_DAYS_AGE_FTS3), NA),
@@ -118,13 +97,13 @@ forms_fetal_biomery_visit1 <- forms_fetal_biomery %>%
   select(-GA_US_DAYS_FTS1, -GA_US_DAYS_FTS2, -GA_US_DAYS_FTS3, -GA_US_DAYS_FTS4)
 
 ## in order to calculate GA at at the other US visits, we need to merge in the GA at screening date with the subset of data for the other visits 
-  ## below i am creating a subset of the  forms_fetal_biomery_visit1 dataset to merge 
+## below i am creating a subset of the  forms_fetal_biomery_visit1 dataset to merge 
 visit1_to_merge <- forms_fetal_biomery_visit1 %>% 
-    # rename visit date to "baseline date" - this will help with merging 
-    rename("BASELINE_DATE" = US_OHOSTDAT) %>% 
-    rename("GA_US_BASELINE_DAYS" = GestAge_Days) %>% 
-    select(SCRNID, BASELINE_DATE, GA_US_BASELINE_DAYS)
-  
+  # rename visit date to "baseline date" - this will help with merging 
+  rename("BASELINE_DATE" = US_OHOSTDAT) %>% 
+  rename("GA_US_BASELINE_DAYS" = GestAge_Days) %>% 
+  select(SCRNID, BASELINE_DATE, GA_US_BASELINE_DAYS)
+
 # extract non-screening ultrasound visits  
 forms_fetal_biomery_other_visits <- forms_fetal_biomery %>% 
   filter(TYPE_VISIT != 1) 
@@ -184,7 +163,6 @@ fl <- c("FL_PERES_01_FTS1", "FL_PERED_01_FTS2", "FL_PERED_01_FTS3", "FL_PERED_01
 
 forms_fetal_biomery_fl <- forms_fetal_biomery_ranges %>% filter(varname %in% fl, response !=-7)
 forms_fetal_biomery_fl$outrange <- ifelse((forms_fetal_biomery_fl$response >= forms_fetal_biomery_fl$fl_min & forms_fetal_biomery_fl$response <= forms_fetal_biomery_fl$fl_max) | forms_fetal_biomery_fl$response!= "-7", "", forms_fetal_biomery_fl$response)
-
 # rbind all fetal biometry measurements 
 forms_fetal_biometry_all <- rbind(forms_fetal_biomery_bpd, forms_fetal_biomery_hc, forms_fetal_biomery_ac, forms_fetal_biomery_fl)
 
@@ -203,34 +181,35 @@ forms_fetal_biometry_query <- add_column(forms_fetal_biometry_query, InfantID = 
 ## add form column
 forms_fetal_biometry_query <- add_column(forms_fetal_biometry_query, Form = "MNH01" , .after = "VisitDate")
 
-FetalBioRangeQuery <- forms_fetal_biometry_query
+FetalBioRangeQuery_Export <- forms_fetal_biometry_query
 
 # update naming
-names(FetalBioRangeQuery) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(FetalBioRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
-if (nrow(FetalBioRangeQuery)>=1){
-  FetalBioRangeQuery = cbind(QueryID = NA, 
-                             UploadDate = UploadDate, 
-                             #MomID = "NA", PregID = "NA",
-                             #VisitDate = "NA", 
-                             FetalBioRangeQuery, 
-                             #`Variable Name` = "NA",
-                             FieldType = "Number", 
-                             EditType = "Out of Range", 
-                             DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+if (nrow(FetalBioRangeQuery_Export)>=1){
+  FetalBioRangeQuery_Export = cbind(QueryID = NA, 
+                                    UploadDate = UploadDate, 
+                                    #MomID = "NA", PregID = "NA",
+                                    #VisitDate = "NA", 
+                                    FetalBioRangeQuery_Export, 
+                                    #`Variable Name` = "NA",
+                                    FieldType = "Number", 
+                                    EditType = "Out of Range", 
+                                    DateEditReported = format(Sys.time(), "%Y-%m-%d"))
 }
 
-if (nrow(FetalBioRangeQuery)>=1){
-  FetalBioRangeQuery$`Variable Value` = as.character(FetalBioRangeQuery$`Variable Value`)
+if (nrow(FetalBioRangeQuery_Export)>=1){
+  FetalBioRangeQuery_Export$`Variable Value` = as.character(FetalBioRangeQuery_Export$`Variable Value`)
 }
 
 #*****************************************************************************
 #*Categorical Variable Queries 
+  # this query will flag any responses reported in the data that do not match the valid response options in the data dictionary (column: Response Options, Value)
 #*****************************************************************************
-
 ## merge data dictionary and site data  
 invalid_response_merge <- left_join(varNames_sheet, data_long, by = c("varname", "form"))
+
 ## make vector of MNH25 forms - we will check these separately at the end 
 m25_forms = c("MNH25_Ghana", "MNH25_India", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan")
 invalid_response_categorical <- invalid_response_merge %>% filter(`Query Category` == "Number", !(form %in% m25_forms))
@@ -249,7 +228,7 @@ invalid_response_categorical$editmessage <- ifelse(invalid_response_categorical$
 # filter out those that are out of range 
 invalid_response_categorical_query <- invalid_response_categorical %>% filter(editmessage == "Invalid Response Option")
 
-# get tab of variables that have default values 
+# get tab of variables that have default values -- this will not be exported, but is a good check to ensure there are not an unreasonable amount of default values
 default_values <- c("55", "88", "77", "99", "66")
 invalid_response_default_value <- invalid_response_categorical %>% 
   group_by(varname) %>% 
@@ -267,29 +246,30 @@ invalid_response_categorical_query <- invalid_response_categorical_query %>% fil
 invalid_response_categorical_query <- invalid_response_categorical_query %>% filter(form != "MNH25")
 
 ## only keep the first 7 columns 
-InvalidResponseCategoricalQuery = invalid_response_categorical_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+InvalidResponseCategoricalQuery_Export = invalid_response_categorical_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
 
 # update naming
-names(InvalidResponseCategoricalQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(InvalidResponseCategoricalQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
-if (nrow(InvalidResponseCategoricalQuery)>=1){
-  InvalidResponseCategoricalQuery = cbind(QueryID = NA, 
-                                          UploadDate = UploadDate, 
-                                          #MomID = "NA", PregID = "NA",
-                                          #VisitDate = "NA", 
-                                          InvalidResponseCategoricalQuery, 
-                                          #`Variable Name` = "NA",
-                                          FieldType = "Number", 
-                                          EditType = "Invalid Response Option", 
-                                          DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+if (nrow(InvalidResponseCategoricalQuery_Export)>=1){
+  InvalidResponseCategoricalQuery_Export = cbind(QueryID = NA, 
+                                                 UploadDate = UploadDate, 
+                                                 #MomID = "NA", PregID = "NA",
+                                                 #VisitDate = "NA", 
+                                                 InvalidResponseCategoricalQuery_Export, 
+                                                 #`Variable Name` = "NA",
+                                                 FieldType = "Number", 
+                                                 EditType = "Invalid Response Option", 
+                                                 DateEditReported = format(Sys.time(), "%Y-%m-%d"))
 }
 
-if (nrow(InvalidResponseCategoricalQuery)>=1){
-  InvalidResponseCategoricalQuery$`Variable Value` = as.character(InvalidResponseCategoricalQuery$`Variable Value`)
+if (nrow(InvalidResponseCategoricalQuery_Export)>=1){
+  InvalidResponseCategoricalQuery_Export$`Variable Value` = as.character(InvalidResponseCategoricalQuery_Export$`Variable Value`)
 }
 #*****************************************************************************
 #*Continuous 
+  # this query will extract any continuous variables (typically lab values) that are outside the min and max set in the data dictionary
 #*****************************************************************************
 # extract continuous variables from the data dictionary 
 ## make vector of MNH25 forms - we will check these separately at the end 
@@ -297,8 +277,9 @@ m25_forms = c("MNH25_Ghana", "MNH25_India", "MNH25_Kenya", "MNH25_Zambia", "MNH2
 requested_varNames_out <- varNames_sheet %>% filter(`Query Category` == "Continuous" & (!is.na(`Minimum Value`) | !is.na(`Maximum Value`)), 
                                                     !(`varname` %in% fetal_biometry_vars), !(form %in% m25_forms)) 
 form_num = toupper(form_num)
+
+
 requested_varNames_out_var <- requested_varNames_out %>% filter(form %in% form_num) %>% 
-  #rename("varname" = `Variable Name`) %>% 
   pull(varname)
 
 # extract the continuous variables that don't have min max values -- save for later 
@@ -343,36 +324,150 @@ forms_con_query <- forms_con_query %>% filter(!(response %in% default_values_con
 
 ## only keep the first 7 columns 
 forms_con_query <- forms_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-ConRangeQuery <- forms_con_query
+ConRangeQuery_Export <- forms_con_query
 
 
 # remove fetal biometry variables from this query since we checked them earlier 
-ConRangeQuery <- ConRangeQuery %>% filter(!(varname %in% fetal_biometry_vars))
+ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(!(varname %in% fetal_biometry_vars))
 
 # remove MNH25 variables -- we will check these later 
-ConRangeQuery <- ConRangeQuery %>% filter(form != "MNH25")
+ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(form != "MNH25")
 
 # update naming
-names(ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
 
-if (nrow(ConRangeQuery)>=1){
+if (nrow(ConRangeQuery_Export)>=1){
   
-  ConRangeQuery = cbind(QueryID = NA, 
-                        UploadDate = UploadDate, 
-                        #MomID = "NA", PregID = "NA",
-                        #VisitDate = "NA", 
-                        ConRangeQuery, 
-                        #`Variable Name` = "NA",
-                        FieldType = "Number", 
-                        EditType = "Out of Range", 
-                        DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  ConRangeQuery_Export = cbind(QueryID = NA, 
+                               UploadDate = UploadDate, 
+                               #MomID = "NA", PregID = "NA",
+                               #VisitDate = "NA", 
+                               ConRangeQuery_Export, 
+                               #`Variable Name` = "NA",
+                               FieldType = "Number", 
+                               EditType = "Out of Range", 
+                               DateEditReported = format(Sys.time(), "%Y-%m-%d"))
 }
 
-if (nrow(ConRangeQuery)>=1){
-  ConRangeQuery$`Variable Value` = as.character(ConRangeQuery$`Variable Value`)
+if (nrow(ConRangeQuery_Export)>=1){
+  ConRangeQuery_Export$`Variable Value` = as.character(ConRangeQuery_Export$`Variable Value`)
 }
+#*****************************************************************************
+#*Dates 
+#* EDD before visit date 
+#* Visit dates after today's date  
+#*****************************************************************************
+## EDD before visit date/today's date 
+# extract date variables from the data dictionary 
+requested_varNames_out_edd <- varNames_sheet %>% filter(`Query Category` == "Date",
+                                                        str_detect(varname, "EDD")) 
+form_num = toupper(form_num)
+requested_varNames_out_var <- requested_varNames_out_edd %>% filter(form %in% form_num) %>% 
+  pull(varname)
+
+# get a list of women who have delivered - we want to remove them from this query about EDD 
+birth_outcome_vars = c("BIRTH_DSTERM_INF1", "BIRTH_DSTERM_INF2", "BIRTH_DSTERM_INF3", "BIRTH_DSTERM_INF4")
+delivered_momids <- data_long  %>% filter(varname %in% birth_outcome_vars) %>% filter(response == 1 | response == 2) %>% pull(MOMID)
+
+# extract date variables from the data 
+edd_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var, !(MOMID %in% delivered_momids))
+
+# make the response range dates 
+edd_out_range$response = ymd(parse_date_time(edd_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))))
+
+# run the query for any dates that are after today 
+edd_out_range$outrange = ifelse(edd_out_range$response <= Sys.Date() & 
+                                  edd_out_range$response != "1907-07-07", "TRUE", "FALSE")
+
+# make edit message 
+edd_out_range$editmessage <- ifelse(edd_out_range$outrange == "TRUE", "Out of Range", "No Error") 
+
+# filter out those that are out of range 
+edd_out_range_query <- edd_out_range %>% filter(editmessage == "Out of Range")
+
+## query any other dates/visit dates that occur after today's date 
+# extract date variables from the data dictionary 
+# first need to get all the edd variables and exclude 
+requested_varNames_out_edd <- requested_varNames_out_edd %>% pull(varname)
+requested_varNames_out <- varNames_sheet %>% filter(`Query Category` == "Date",
+                                                    !(`varname` %in% fetal_biometry_vars), 
+                                                    !(`varname` %in% requested_varNames_out_edd)) 
+form_num = toupper(form_num)
+requested_varNames_out_var <- requested_varNames_out %>% filter(form %in% form_num) %>% 
+  pull(varname)
+
+# extract date variables from the data 
+date_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var)
+
+# make the response range dates 
+date_out_range$response = ymd(parse_date_time(date_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))))
+
+# run the query for any visit dates that are after today 
+date_out_range_vist <- date_out_range
+date_out_range_vist$outrange = ifelse(date_out_range_vist$response >= Sys.Date() & 
+                                        date_out_range_vist$response != "1907-07-07", "TRUE", "FALSE")
+
+# run the query for any dates that are after today for remainder of variables
+date_out_range_nonvisit_query = date_out_range
+date_out_range_nonvisit_query$outrange = ifelse(date_out_range_nonvisit_query$response >= Sys.Date() & 
+                                                  date_out_range_nonvisit_query$response != "1907-07-07", "TRUE", "FALSE")
+
+# make edit message 
+date_out_range_vist$editmessage <- ifelse(date_out_range_vist$outrange == "TRUE", "Out of Range", "No Error") 
+date_out_range_nonvisit_query$editmessage <- ifelse(date_out_range_nonvisit_query$outrange == "TRUE", "Out of Range", "No Error") 
+
+# filter out those that are out of range 
+date_out_range_visit_query <- date_out_range_vist %>% filter(editmessage == "Out of Range")
+date_out_range_nonvisit_query <- date_out_range_nonvisit_query %>% filter(editmessage == "Out of Range")
+
+# rbind non-edd date queries 
+date_out_range_query_subset <- rbind(date_out_range_nonvisit_query, date_out_range_visit_query)
+
+## rbind all date queries here 
+date_out_range_query <- rbind(date_out_range_query_subset, edd_out_range_query)
+
+# get tab of variables that have default values 
+default_values <- c("1907-07-07", "07/07/1907", "07-07-1907")
+out_range_default_value_date <- date_out_range_query %>% 
+  group_by(varname) %>% 
+  add_count(name = "n_total") %>%                    ## get the total count for each variable 
+  filter(editmessage == "Out of Range") %>%          ## only look at the variables that do not include default values in the resposne options
+  group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
+  count(name ="n_response") %>%                      ## count the number each specific response is reported 
+  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
+  filter(response %in% default_values)               ## exclude to only the default values 
+
+# remove default values for query but will review at the end of script 
+date_out_range_query <- date_out_range_query %>% filter(!(response %in% default_values)) 
+
+# remove MNH25 variables -- we will check these later 
+date_out_range_query <- date_out_range_query %>% filter(form != "MNH25")
+
+## only keep the first 7 columns 
+OutRangeDateQuery_Export = date_out_range_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+
+# update naming
+names(OutRangeDateQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+
+## add additional columns 
+if (nrow(OutRangeDateQuery_Export)>=1){
+  OutRangeDateQuery_Export = cbind(QueryID = NA, 
+                                   UploadDate = UploadDate, 
+                                   #MomID = "NA", PregID = "NA",
+                                   #VisitDate = "NA", 
+                                   OutRangeDateQuery_Export, 
+                                   #`Variable Name` = "NA",
+                                   FieldType = "Date", 
+                                   EditType = "Out of Range", 
+                                   DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
+
+if (nrow(OutRangeDateQuery_Export)>=1){
+  OutRangeDateQuery_Export$`Variable Value` = as.character(OutRangeDateQuery_Export$`Variable Value`)
+}
+
 #*****************************************************************************
 #*MNH25 Variable Queries 
 #*****************************************************************************
@@ -404,24 +499,24 @@ if (site=="Kenya"){
   
   ## only keep the first 7 columns 
   mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-  M25_ConRangeQuery <- mnh25_con_query
+  M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
-  if (nrow(M25_ConRangeQuery)>=1){
+  if (nrow(M25_ConRangeQuery_Export)>=1){
     
-    M25_ConRangeQuery = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              #VisitDate = "NA", 
-                              M25_ConRangeQuery, 
-                              #`Variable Name` = "NA",
-                              FieldType = "Number", 
-                              EditType = "Out of Range", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
   # extract categorical variables from the data dictionary 
@@ -450,22 +545,22 @@ if (site=="Kenya"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
-  if (nrow(M25_OutRangeNumericQuery)>=1){
-    M25_OutRangeNumericQuery = cbind(QueryID = NA, 
-                                     UploadDate = UploadDate, 
-                                     #MomID = "NA", PregID = "NA",
-                                     #VisitDate = "NA", 
-                                     M25_OutRangeNumericQuery, 
-                                     #`Variable Name` = "NA",
-                                     FieldType = "Number", 
-                                     EditType = "Out of Range", 
-                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
 }
@@ -491,24 +586,24 @@ if (site=="Pakistan"){
   
   ## only keep the first 7 columns 
   mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-  M25_ConRangeQuery <- mnh25_con_query
+  M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
-  if (nrow(M25_ConRangeQuery)>=1){
+  if (nrow(M25_ConRangeQuery_Export)>=1){
     
-    M25_ConRangeQuery = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              #VisitDate = "NA", 
-                              M25_ConRangeQuery, 
-                              #`Variable Name` = "NA",
-                              FieldType = "Number", 
-                              EditType = "Out of Range", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
   # extract categorical variables from the data dictionary 
@@ -537,22 +632,22 @@ if (site=="Pakistan"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
-  if (nrow(M25_OutRangeNumericQuery)>=1){
-    M25_OutRangeNumericQuery = cbind(QueryID = NA, 
-                                     UploadDate = UploadDate, 
-                                     #MomID = "NA", PregID = "NA",
-                                     #VisitDate = "NA", 
-                                     M25_OutRangeNumericQuery, 
-                                     #`Variable Name` = "NA",
-                                     FieldType = "Number", 
-                                     EditType = "Out of Range", 
-                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
 }
@@ -578,24 +673,24 @@ if (site=="Ghana"){
   
   ## only keep the first 7 columns 
   mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-  M25_ConRangeQuery <- mnh25_con_query
+  M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
-  if (nrow(M25_ConRangeQuery)>=1){
+  if (nrow(M25_ConRangeQuery_Export)>=1){
     
-    M25_ConRangeQuery = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              #VisitDate = "NA", 
-                              M25_ConRangeQuery, 
-                              #`Variable Name` = "NA",
-                              FieldType = "Number", 
-                              EditType = "Out of Range", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
   # extract categorical variables from the data dictionary 
@@ -624,22 +719,22 @@ if (site=="Ghana"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
-  if (nrow(M25_OutRangeNumericQuery)>=1){
-    M25_OutRangeNumericQuery = cbind(QueryID = NA, 
-                                     UploadDate = UploadDate, 
-                                     #MomID = "NA", PregID = "NA",
-                                     #VisitDate = "NA", 
-                                     M25_OutRangeNumericQuery, 
-                                     #`Variable Name` = "NA",
-                                     FieldType = "Number", 
-                                     EditType = "Out of Range", 
-                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
 }
@@ -665,24 +760,24 @@ if (site=="Zambia"){
   
   ## only keep the first 7 columns 
   mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-  M25_ConRangeQuery <- mnh25_con_query
+  M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
-  if (nrow(M25_ConRangeQuery)>=1){
+  if (nrow(M25_ConRangeQuery_Export)>=1){
     
-    M25_ConRangeQuery = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              #VisitDate = "NA", 
-                              M25_ConRangeQuery, 
-                              #`Variable Name` = "NA",
-                              FieldType = "Number", 
-                              EditType = "Out of Range", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
   # extract categorical variables from the data dictionary 
@@ -711,22 +806,22 @@ if (site=="Zambia"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
-  if (nrow(M25_OutRangeNumericQuery)>=1){
-    M25_OutRangeNumericQuery = cbind(QueryID = NA, 
-                                     UploadDate = UploadDate, 
-                                     #MomID = "NA", PregID = "NA",
-                                     #VisitDate = "NA", 
-                                     M25_OutRangeNumericQuery, 
-                                     #`Variable Name` = "NA",
-                                     FieldType = "Number", 
-                                     EditType = "Out of Range", 
-                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
 }
@@ -753,24 +848,24 @@ if (site=="India"){
   
   ## only keep the first 7 columns 
   mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
-  M25_ConRangeQuery <- mnh25_con_query
+  M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
-  if (nrow(M25_ConRangeQuery)>=1){
+  if (nrow(M25_ConRangeQuery_Export)>=1){
     
-    M25_ConRangeQuery = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              #VisitDate = "NA", 
-                              M25_ConRangeQuery, 
-                              #`Variable Name` = "NA",
-                              FieldType = "Number", 
-                              EditType = "Out of Range", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+    M25_ConRangeQuery_Export = cbind(QueryID = NA, 
+                                     UploadDate = UploadDate, 
+                                     #MomID = "NA", PregID = "NA",
+                                     #VisitDate = "NA", 
+                                     M25_ConRangeQuery_Export, 
+                                     #`Variable Name` = "NA",
+                                     FieldType = "Number", 
+                                     EditType = "Out of Range", 
+                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
   # extract categorical variables from the data dictionary 
@@ -799,35 +894,35 @@ if (site=="India"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
-  if (nrow(M25_OutRangeNumericQuery)>=1){
-    M25_OutRangeNumericQuery = cbind(QueryID = NA, 
-                                     UploadDate = UploadDate, 
-                                     #MomID = "NA", PregID = "NA",
-                                     #VisitDate = "NA", 
-                                     M25_OutRangeNumericQuery, 
-                                     #`Variable Name` = "NA",
-                                     FieldType = "Number", 
-                                     EditType = "Out of Range", 
-                                     DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+    M25_OutRangeNumericQuery_Export = cbind(QueryID = NA, 
+                                            UploadDate = UploadDate, 
+                                            #MomID = "NA", PregID = "NA",
+                                            #VisitDate = "NA", 
+                                            M25_OutRangeNumericQuery_Export, 
+                                            #`Variable Name` = "NA",
+                                            FieldType = "Number", 
+                                            EditType = "Out of Range", 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   }
   
 }
 
 
-if (nrow(M25_OutRangeNumericQuery)>=1){
-  M25_OutRangeNumericQuery$`Variable Value` = as.character(M25_OutRangeNumericQuery$`Variable Value`)
+if (nrow(M25_OutRangeNumericQuery_Export)>=1){
+  M25_OutRangeNumericQuery_Export$`Variable Value` = as.character(M25_OutRangeNumericQuery_Export$`Variable Value`)
 }
 #*****************************************************************************
 #* Remove all emply dataframe 
 #* this means that the only data frames left are the ones with true queries   
 #*****************************************************************************
-# 
+
 ## create a function that returns a logical value
 isEmpty <- function(x) {
   is.data.frame(x) && nrow(x) == 0L
@@ -839,8 +934,8 @@ empty <- unlist(eapply(.GlobalEnv, isEmpty))
 rm(list = names(empty)[empty])
 
 ## export 
-## bind forms 
-out <- rbindlist(mget(ls(pattern = "*Query")))
+## bind forms
+out <- rbindlist(mget(ls(pattern = "*Query_Export$")))
 
 # combine form/edit type var -- will have to do for each of forms that have duplicates 
 out <- add_column(out, Form_Edit_Type=paste(out$Form,"_",out$EditType))
@@ -859,47 +954,48 @@ OutRangeCheck_query <- OutRangeCheck_query %>%
                           ifelse(EditType == "Out of Range", paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"), NA)
   ))
 
-# export out of range queries 
-save(OutRangeCheck_query, file = "queries/OutRangeCheck_query.rda")
-
-## the follow tables show the % of responses that were default values that were NOT already included on the answer option
-# example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
-# if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
-
-view(invalid_response_default_value)
-view(out_range_default_value_continuous)
+# export out of range queries
+save(OutRangeCheck_query, file = paste0(path_to_save, "OutRangeCheck_query.rda"))
 
 
 ## the follow tables show the % of responses that were default values that were NOT already included on the answer option
 # example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
 # if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
 
-
+#*****************************************************************************
+#* EXTRA CODE FOR HIGH FREQUENCY VARAIABLES 
+#* Out of range queries that are pulled in high frequencies are pulled into a new tab in the query report 
+    ## this new tab will display what the error was, what the valid repsonse should be, and the frequency the query was pulled  
+#*****************************************************************************
 #This is to extract the Create more information for the High frequency Variables categorical and to include the response, count and expected response range 
-# Step 0: Get the real queries out
+# Step 0: Extract the real queries 
 
-invalid_response_high_freq_query <- invalid_response_categorical
+invalid_response_high_freq_query <- invalid_response_categorical # rename
 
+## pull "invalid response option" queries (categorical)
 invalid_response_high_freq_query_filtered <- invalid_response_high_freq_query %>%
   filter(editmessage == "Invalid Response Option")
 
+## filter out any default values. Since these are categorical variables, we expect the default values to be 77,55,88,99
 invalid_response_high_freq_query_filter <- invalid_response_high_freq_query_filtered %>%
   filter(!(response %in% c("77", "55", "88", "99")))
 
 
 #Step One: Get the count and group by response
-summary_numeric_1 <- invalid_response_high_freq_query_filter %>%  group_by(form, varname, response) %>%
+summary_output_1 <- invalid_response_high_freq_query_filter %>%  group_by(form, varname, response, `Query Category`) %>%
   summarize(count = n())
 
-#Step Two: Get the common response range
+#Step Two: Extract the unique responses present in the data for each variable 
+  # Example: there are n=100 participants who reported TYPE_VISIT = 15 and n=50 participants who reported TYPE_VISIT = -7; these will get 2 unique rows in the high frequency tab
 common_data <- invalid_response_high_freq_query_filter %>%
   group_by(response, response_range, form, varname) %>%
   summarize(response_range = unique(response_range))
 
-#Join the two data frames
-OutRange_Invalid_Query_Summary <- inner_join(summary_numeric_1, common_data, by = c("form", "varname", "response")) %>% 
+#Join the two data frames from Step One and Step Two above 
+OutRange_Invalid_Query_Summary <- inner_join(summary_output_1, common_data, by = c("form", "varname", "response")) %>% 
   cbind(min = "*", max = "*", DefaultValue = "77, Not Applicable; 55, Missing Data Point", EditType ="Invalid Response") 
 
+## create "Recommendations" column that provides extra instruction on how to address query 
 OutRange_Invalid_Query_Summary <- OutRange_Invalid_Query_Summary %>%
   mutate(Recommendations = ifelse(response %in% c("-7", "N/A", "n/a", "na", "NA", "Na"),
                                   "Change default value to 77 if not applicable",
@@ -908,8 +1004,8 @@ OutRange_Invalid_Query_Summary <- OutRange_Invalid_Query_Summary %>%
                                          "Input valid data within the Response Range Options")))
 
 #For Continuous Variables
-#Step One: Get the count and group by response
 
+#Step One: Get the count and group by response
 summary_cont_1 <- forms_con_query %>% 
   group_by(varname, form, response) %>% 
   summarize(count = n())
@@ -934,49 +1030,20 @@ OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary %>%
   mutate(max = as.character(max)) %>% 
   add_column (EditType="Out of Range")
 
+## create "Recommendations" column that provides extra instruction on how to address query 
 OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary_1 %>%
   mutate(Recommendations = ifelse(response == 77, 
                                   "Change default value to -7, if not applicable", 
                                   "Input valid data within the minimum and max range" ))
 
 
-# Inner join the two data frames
-High_Freq_Invalid_Query <- full_join(OutRange_Cont_Query_Summary_1, OutRange_Invalid_Query_Summary) %>%  filter(count > 40)
+# Inner join the two high frequency query data frames
+High_Freq_Invalid_extra_tab <- full_join(OutRange_Cont_Query_Summary_1, OutRange_Invalid_Query_Summary) %>%  filter(count > 40)
 
-High_Freq_Invalid_Query <- add_column(High_Freq_Invalid_Query, 'Form and Edit Type'=paste
-                                      (High_Freq_Invalid_Query$form, "_", High_Freq_Invalid_Query$`varname`,"_", 
-                                        High_Freq_Invalid_Query$EditType, sep = ""))
-
-save(High_Freq_Invalid_Query, file = "queries/High_Freq_Invalid_Query.rda")
+High_Freq_Invalid_extra_tab <- add_column(High_Freq_Invalid_extra_tab, 'Form and Edit Type'=paste
+                                      (High_Freq_Invalid_extra_tab$form, "_", High_Freq_Invalid_extra_tab$`varname`,"_", 
+                                        High_Freq_Invalid_extra_tab$EditType, sep = ""))
 
 
-### extra -- pulling lab queries 
-lab_queries <- OutRangeCheck_query %>%
-  filter(Form == "MNH08") %>%
-  select(Form, 'Variable Name', 'Variable Value') %>%
-  group_by(`Variable Name`) %>%
-  mutate(mean = round(mean(as.numeric(`Variable Value`)),1),
-         sd = round(sd(as.numeric(`Variable Value`)),1),
-         min = min(as.numeric(`Variable Value`)),
-         max = max(as.numeric(`Variable Value`))
-         ) %>%
-  select(-`Variable Value`) %>%
-  group_by(`Variable Name`) %>%
-  add_count(name = "n_total") %>%
-  distinct()
-
-# merge in dd
-varNames_sheet <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
-varNames_sheet <- varNames_sheet %>%filter(Form == "MNH08") %>%  select(`Variable Name`,`Minimum Value`,`Maximum Value` )
-names(varNames_sheet) = c("Variable Name", "DD Min", "DD Max")
-
-lab_queries <- left_join(lab_queries, varNames_sheet, by = "Variable Name")
-
-lab_queries <- lab_queries %>% filter(mean != -7)
-
-#setwd("D:/Users/stacie.loisate/Documents/PRiSMAv2Data/Lab")
-## export all to a new excel sheet
-xl_lst <- list('site' = lab_queries)
-write.xlsx(xl_lst, file = paste("lab_report_high_freq_", UploadDate, ".xlsx", sep = ""))
-
-
+# export 
+save(High_Freq_Invalid_extra_tab, file = paste0(path_to_save, "High_Freq_Invalid_extra_tab.rda"))
