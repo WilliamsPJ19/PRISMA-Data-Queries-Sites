@@ -1,25 +1,23 @@
 #*****************************************************************************
-#*QUERY #1 -- CHECK FOR CORE VARIABLE NAMES 
+#*QUERY #2 -- CHECK FOR DUPLICATE IDs
 #* Written by: Stacie Loisate & Xiaoyan Hu
 #* Last updated: 06 September 2023
 
-#*Input: Wide data (all raw .csv files)
-#*Function: check to make sure all variables exist in the data and match data dictionary formatting 
-#*Output: .rda file with all missing or extra variable names 
-#*****************************************************************************
-#* Items to Update before running script 
-#* You can copy and paste "UPDATE EACH RUN" to find where to update 
-#* 1. Update "UploadDate" 
-#* 2. Set "site" variable to the site you are running the query for 
-#* 3. Set your main directory 
-#* 
-#* Once the previous lines of code are updated, you can highlight the entire script and run 
+#*Input: Wide data (all raw .csv files) & Long data 
+#*Functions: 
+    # Duplicate IDs: identifies any duplicate IDs present in the data 
+    # Maternal Protocol check: do all enrolled participants have a MNH02 enrollment form?
+    # Infant Protocol check: are all infants represented in a delivery form
+#*Output: 
+    # .rda file with all duplicate IDs (duplicates_query.rda)
+    # .rda file with all MomIDs missing an enrollment form (MomidNotMatched_query.rda)
+    # .rda file with all InfantIDs missing from a delivery form (InfidNotMatched_query.rda)
 
 #* Notes: 
-#* Make sure the data dictionary is in the correct folder 
+#* If you get an error that says it cannot bind because there are 0 rows, that means there are no duplicates 
 #*****************************************************************************
 #*****************************************************************************
-#* DATA SETUP
+#* Data Setup
 #*****************************************************************************
 
 # load packages 
@@ -30,1171 +28,1411 @@ library(readr)
 library(dplyr)
 library(data.table)
 library(lubridate)
-library(openxlsx)
-library(stringr)
 
-# UPDATE EACH RUN: set site variable - this is nsecessary to call in the correct MNH25 variables from the data dictionary (each site has their own MNH25)
+# UPDATE EACH RUN: set site variable - this is necessary to call in the correct MNH25 variables from the data dictionary (each site has their own MNH25)
 site = "Kenya"
 
 # UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
 UploadDate = "2023-08-25"
 
-# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code 
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code -- for duplicates
 load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
 
-## UPDATE EACH RUN: set path to location where you want to save the query output below 
+# UPDATE EACH RUN:load in the LONG data we generated from 00_DataImport code -- for protocol checks 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
+
+
+# UPDATE EACH RUN: set path to location where you want to save the query output below 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
-## call in the data dictionary 
-variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
-variable_names <- variable_names %>% select(Form, `Variable Name`)
-names(variable_names) = c("Form", "VarName")
-variable_names$VarName = toupper(variable_names$VarName)
-
-#* Make empty dataframe to store the extracted queries in: 
-#* variables that are present in the data but not the data dictionary will be flagged as "extra variables" in VarNamesExtra
-VarNamesExtra <- as.data.frame(matrix(nrow = 1, ncol = 2))
-names(VarNamesExtra) = c("Form", "Extra Variables")
-
-#* variables that are present in the data dictionary but not the data will be flagged as "missing variables" in VarNamesMissing
-VarNamesMissing <- as.data.frame(matrix(nrow = 1, ncol = 2))
-names(VarNamesMissing) = c("Form", "Missing Variables")
-
-## The following code will loop through each form to identify any extra or missing variables 
 #*****************************************************************************
-#*MNH00
+#* check duplicated IDs 
+#* The following codes will extract and ID that is duplicated in the data based on visit date/visit type/MOMID, PREGID, INFANTID
 #*****************************************************************************
+#*Make empty dataframe 
+#* any maternal duplicate ids will be stored in the VarNamesDuplicate data frame
+VarNamesDuplicate <- as.data.frame(matrix(nrow = 1, ncol = 6))
+names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
+
+#*Make empty dataframe 
+#* any infant duplicate ids will be stored in the VarNamesDuplicate data frame
+VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
+names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
+
+#****************************************
+#* SCRNID --> mnh00 and mnh02
+#****************************************
 if (exists("mnh00")==TRUE){
-  #*get variable list for MNH00
-  VarNames_form <- variable_names %>% filter(Form == "MNH00") %>% select("VarName")
-  VarNames_m00 = as.vector(VarNames_form$VarName)
-  VarNames_data <- colnames(mnh00)
   
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m00 <- as.data.frame(setdiff(VarNames_m00,VarNames_data))
-  names(VarNamesMissing_m00) = "Missing Variables"
-  
-  if (length(VarNamesMissing_m00 >1)) {
-    VarNamesMissing_m00 = cbind(Form = "MNH00", VarNamesMissing_m00)
+  dup_SCRNID <- function(form) {
+    ID <- form %>% 
+      dplyr::select(SCRNID)
+    dup <- form[duplicated(ID),] %>% 
+      arrange(SCRNID) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dupID)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m00 <- as.data.frame(setdiff(VarNames_data,VarNames_m00))
-  names(VarNamesExtra_m00) = "Extra Variables"
+  m00_id_dup <- dup_SCRNID(mnh00)
   
-  if (length(VarNamesExtra_m00 >1)) {
-    VarNamesExtra_m00 = cbind(Form = "MNH00", VarNamesExtra_m00)
-  }
+  # export key variables 
+  m00_id_dup <- m00_id_dup %>% 
+    group_by(SCRNID) %>% 
+    filter(OTHR_IEORRES != 1 & OTHR_IEORRES == 77) %>% ## remove the women would had some reason to be excluded 
+    dplyr::select(SCRNID, MOMID, PREGID, SCRN_OBSSTDAT) 
+  
+  # add visit type column 
+  m00_id_dup <- add_column(m00_id_dup,VisitType = NA , .after = "PREGID")
+  
+  # rename columns 
+  names(m00_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
+  
+  # add form column 
+  m00_id_dup <- add_column(m00_id_dup,Form = "MNH00" , .after = "VisitDate")
   
   #*bind with other forms
-  if (nrow(VarNamesExtra_m00 > 1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m00)
-  } 
-  
-  if (nrow(VarNamesMissing_m00 > 1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m00)
-  }
-  
-}
-#*****************************************************************************
-#*MNH01
-#*****************************************************************************
-if (exists("mnh01")==TRUE){
-  
-  #*get variable list for MNH01
-  VarNames_form <- variable_names %>% filter(Form == "MNH01") %>% select("VarName")
-  VarNames_m01 = as.vector(VarNames_form$VarName)
-  
-  VarNames_data <- colnames(mnh01)
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m01 <- as.data.frame(setdiff(VarNames_m01,VarNames_data))
-  names(VarNamesMissing_m01) = "Missing Variables"
-  
-  if (length(VarNamesMissing_m01 >1)) {
-    VarNamesMissing_m01 = cbind(Form = "MNH01", VarNamesMissing_m01)
-  }
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m01 <- as.data.frame(setdiff(VarNames_data,VarNames_m01))
-  names(VarNamesExtra_m01) = "Extra Variables"
-  
-  if (length(VarNamesExtra_m01 >1)) {
-    VarNamesExtra_m01 = cbind(Form = "MNH01", VarNamesExtra_m01)
-  }
-  
-  
-  #*bind with other forms
-  if (nrow(VarNamesExtra_m01 > 1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m01)
-  } 
-  
-  if (nrow(VarNamesMissing_m01 > 1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m01)
+  if (nrow(m00_id_dup > 1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m00_id_dup)
   } 
   
 }
-#*****************************************************************************
-#*MNH02
-#*****************************************************************************
+#****************************************
+#* SCRNID --> mnh02
+#****************************************
 if (exists("mnh02")==TRUE){
   
-  #*get variable list for MNH02
-  VarNames_form <- variable_names %>% filter(Form == "MNH02") %>% select("VarName")
-  VarNames_m02 = as.vector(VarNames_form$VarName)
-  
-  VarNames_data <- colnames(mnh02)
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m02 <- as.data.frame(setdiff(VarNames_m02,VarNames_data))
-  names(VarNamesMissing_m02) = "Missing Variables"
-  
-  if (length(VarNamesMissing_m02 >1)) {
-    VarNamesMissing_m02 = cbind(Form = "MNH02", VarNamesMissing_m02)
+  dup_SCRNID <- function(form) {
+    ID <- form %>% 
+      dplyr::select(SCRNID)
+    dup <- form[duplicated(ID),] %>% 
+      arrange(SCRNID) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dupID)
   }
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m02 <- as.data.frame(setdiff(VarNames_data,VarNames_m02))
-  names(VarNamesExtra_m02) = "Extra Variables"
   
-  if (length(VarNamesExtra_m02 >1)) {
-    VarNamesExtra_m02 = cbind(Form = "MNH02", VarNamesExtra_m02)
-  }
+  m02_id_dup <- dup_SCRNID(mnh02)
+  
+  # export key variables 
+  m02_id_dup <- m02_id_dup %>% 
+    dplyr::select(SCRNID, MOMID, PREGID, SCRN_OBSSTDAT)
+  
+  
+  # add visit type column 
+  m02_id_dup <- add_column(m02_id_dup, VisitType = NA , .after = "PREGID")
+  
+  # rename columns 
+  names(m02_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
+  
+  # add form column 
+  m02_id_dup <- add_column(m02_id_dup,Form = "MNH02" , .after = "VisitDate")
   
   
   #*bind with other forms
-  
-  if (length(VarNamesMissing_m02 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m02)
-  }
-  
-  if (length(VarNamesExtra_m02 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m02)
-  }
-}
-#*****************************************************************************
-#*MNH03
-#*****************************************************************************
-if (exists("mnh03")==TRUE){
-  #*get variable list for MNH03 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH03") %>% select("VarName")
-  VarNames_m03 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH03 from data  
-  VarNames_data <- colnames(mnh03) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m03 <- as.data.frame(setdiff(VarNames_m03,VarNames_data))
-  names(VarNamesMissing_m03) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m03 >1)) {
-    VarNamesMissing_m03 = cbind(Form = "MNH03", VarNamesMissing_m03)
-  }
-  
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m03 <- as.data.frame(setdiff(VarNames_data,VarNames_m03))
-  names(VarNamesExtra_m03) = "Extra Variables"
-  
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m03 >1)) {
-    VarNamesExtra_m03 = cbind(Form = "MNH03", VarNamesExtra_m03)
-  }
-  
-  #*bind with other forms
-  if (length(VarNamesMissing_m03 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m03)
-  }
-  
-  if (length(VarNamesExtra_m03 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m03)
-  }
+  if (nrow(m02_id_dup > 1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m02_id_dup)
+  } 
 }
 
-#*****************************************************************************
-#*MNH04
-#*****************************************************************************
+#****************************************
+#*SCRNID & US_VISIT & US_OHOSTDAT  --> 01
+#*
+#****************************************
+if (exists("mnh01")==TRUE){
+  
+  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT & Visit date 
+  dup_US <- function(form) {
+    ID <- form %>% 
+      dplyr::select(SCRNID, TYPE_VISIT, US_OHOSTDAT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(SCRNID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
+  }
+  
+  out_us <- dup_US(mnh01)
+  
+  # export key variables if duplicates exists 
+ out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT, US_OHOSTDAT)
+  
+  # rename columns 
+  names(out_us) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
+  
+  # add form column 
+  out_us <- add_column(out_us,Form = "MNH01")
+  
+  #*bind with other forms
+  if (nrow(out_us > 1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, out_us)
+  } 
+}
+#****************************************
+#*#MOMID & PREGID --> mnh03
+#****************************************
+if (exists("mnh03")==TRUE){
+  
+  names(mnh03) <- toupper(names(mnh03))
+  datalist <- list(mnh03)
+  
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
+  }
+  
+  xmomid_dup <- datalist %>% map(dup_MOMID_PREGID)
+  names(xmomid_dup) = c("m03")
+  
+  for (i in seq(xmomid_dup)){
+    assign(paste0(names(xmomid_dup[i]),"_id_dup"), xmomid_dup[[i]])
+  }
+  
+  # export key variables if duplicates exists 
+  m03_id_dup <- m03_id_dup %>% select(MOMID, PREGID, SD_OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m03_id_dup >1)) {
+    m03_id_dup = cbind(SCRNID = "NA", m03_id_dup)
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m03_id_dup >1)) {
+    names(m03_id_dup) = c("SCRNID","MOMID", "PREGID", "VisitDate")
+    
+    # add form column
+    m03_id_dup <- add_column(m03_id_dup,Form = "MNH03")
+    
+    # add visit type column
+    m03_id_dup <- add_column(m03_id_dup,VisitType = "NA", .before = "VisitDate")
+    
+    m03_id_dup <- m03_id_dup %>% unique() ## only need to include 1 instance of the duplicate
+    
+  }
+  
+  
+  #*bind with other forms
+  if (nrow(m03_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m03_id_dup)
+  }
+}
+#****************************************
+#* MOMID & PREGID & US_VISIT --> MNH04
+#****************************************
 if (exists("mnh04")==TRUE){
   
-  #*get variable list for MNH04 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH04") %>% select("VarName")
-  VarNames_m04 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH04 from data  
-  VarNames_data <- colnames(mnh04) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m04 <- as.data.frame(setdiff(VarNames_m04,VarNames_data))
-  names(VarNamesMissing_m04) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m04 >1)) {
-    VarNamesMissing_m04 = cbind(Form = "MNH04", VarNamesMissing_m04)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m04 <- as.data.frame(setdiff(VarNames_data,VarNames_m04))
-  names(VarNamesExtra_m04) = "Extra Variables"
+  id_visit_dup_m04 <- dup_MOM_PREG_TV(mnh04)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m04 >1)) {
-    VarNamesExtra_m04 = cbind(Form = "MNH04", VarNamesExtra_m04)
+  # export key variables if duplicates exists 
+  if (length(id_visit_dup_m04 >1)) {
+    id_visit_dup_m04 <- id_visit_dup_m04 %>% select(MOMID, PREGID, TYPE_VISIT,ANC_OBSSTDAT)
   }
+  
+  # add SCRNID column if duplicates exist 
+  if (length(id_visit_dup_m04 >1)) {
+    id_visit_dup_m04 = cbind(SCRNID = "NA", id_visit_dup_m04)
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(id_visit_dup_m04 >1)) {
+    names(id_visit_dup_m04) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  id_visit_dup_m04 <- add_column(id_visit_dup_m04,Form = "MNH04")
+  
+  id_visit_dup_m04 <- id_visit_dup_m04 %>% unique() ## only need to include 1 instance of the duplicate
   
   #*bind with other forms
-  if (length(VarNamesMissing_m04 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m04)
-  }
-  
-  if (length(VarNamesExtra_m04 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m04)
+  if (nrow(id_visit_dup_m04 >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m04)
   }
   
 }
-#*****************************************************************************
-#*MNH05
-#*****************************************************************************
+
+#****************************************
+#* MOMID & PREGID & TYPE_VISIT --> MNH05
+#****************************************
 if (exists("mnh05")==TRUE){
   
-  #*get variable list for MNH05 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH05") %>% select("VarName")
-  VarNames_m05 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH05 from data  
-  VarNames_data <- colnames(mnh05) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m05 <- as.data.frame(setdiff(VarNames_m05,VarNames_data))
-  names(VarNamesMissing_m05) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m05 >1)) {
-    VarNamesMissing_m05 = cbind(Form = "MNH05", VarNamesMissing_m05)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m05 <- as.data.frame(setdiff(VarNames_data,VarNames_m05))
-  names(VarNamesExtra_m05) = "Extra Variables"
+  id_visit_dup_m05 <- dup_MOM_PREG_TV(mnh05)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m05 >1)) {
-    VarNamesExtra_m05 = cbind(Form = "MNH05", VarNamesExtra_m05)
+  # export key variables if duplicates exists 
+  if (length(id_visit_dup_m05 >1)) {
+    id_visit_dup_m05 <- id_visit_dup_m05 %>% select(MOMID, PREGID, TYPE_VISIT,ANT_PEDAT)
   }
+  
+  # add SCRNID column if duplicates exist 
+  if (length(id_visit_dup_m05 >1)) {
+    id_visit_dup_m05 = cbind(SCRNID = "NA", id_visit_dup_m05)
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(id_visit_dup_m05 >1)) {
+    names(id_visit_dup_m05) = c("SCRNID","MOMID", "PREGID", "VisitType","VisitDate")
+  }
+  
+  # add form column 
+  id_visit_dup_m05 <- add_column(id_visit_dup_m05,Form = "MNH05")
+  
+  id_visit_dup_m05 <- id_visit_dup_m05 %>% unique() ## only need to include 1 instance of the duplicate
+
   
   #*bind with other forms
-  if (length(VarNamesMissing_m05 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m05)
-  }
-  
-  if (length(VarNamesExtra_m05 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m05)
+  if (nrow(id_visit_dup_m05 >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m05)
   }
 }
-#*****************************************************************************
-#*MNH06
-#*****************************************************************************
+#****************************************
+#* MOMID & PREGID & US_VISIT --> MNH06
+#****************************************
 if (exists("mnh06")==TRUE){
   
-  #*get variable list for MNH06 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH06") %>% select("VarName")
-  VarNames_m06 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH06 from data  
-  VarNames_data <- colnames(mnh06) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m06 <- as.data.frame(setdiff(VarNames_m06,VarNames_data))
-  names(VarNamesMissing_m06) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m06 >1)) {
-    VarNamesMissing_m06 = cbind(Form = "MNH06", VarNamesMissing_m06)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m06 <- as.data.frame(setdiff(VarNames_data,VarNames_m06))
-  names(VarNamesExtra_m06) = "Extra Variables"
+  id_visit_dup_m06 <- dup_MOM_PREG_TV(mnh06)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m06 >1)) {
-    VarNamesExtra_m06 = cbind(Form = "MNH06", VarNamesExtra_m06)
+  # export key variables if duplicates exists 
+  if (length(id_visit_dup_m06 >1)) {
+    id_visit_dup_m06 <- id_visit_dup_m06 %>% select(MOMID, PREGID, TYPE_VISIT,DIAG_VSDAT)
   }
+  
+  # add SCRNID column if duplicates exist 
+  if (length(id_visit_dup_m06 >1)) {
+    id_visit_dup_m06 = cbind(SCRNID = "NA", id_visit_dup_m06)
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(id_visit_dup_m06 >1)) {
+    names(id_visit_dup_m06) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  id_visit_dup_m06 <- add_column(id_visit_dup_m06,Form = "MNH06")
+  
+  ## only need to include 1 instance of the duplicate
+  id_visit_dup_m06 <- id_visit_dup_m06 %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m06 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m06)
+  if (nrow(id_visit_dup_m06 >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, id_visit_dup_m06)
   }
   
-  if (length(VarNamesExtra_m06 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m06)
-  }
 }
-#*****************************************************************************
-#*MNH07
-#*****************************************************************************
+#****************************************
+#* MNH07 
+#****************************************
 if (exists("mnh07")==TRUE){
   
-  #*get variable list for MNH07 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH07") %>% select("VarName")
-  VarNames_m07 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH07 from data  
-  VarNames_data <- colnames(mnh07) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m07 <- as.data.frame(setdiff(VarNames_m07,VarNames_data))
-  names(VarNamesMissing_m07) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m07 >1)) {
-    VarNamesMissing_m07 = cbind(Form = "MNH07", VarNamesMissing_m07)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m07 <- as.data.frame(setdiff(VarNames_data,VarNames_m07))
-  names(VarNamesExtra_m07) = "Extra Variables"
+  m07_id_dup <- dup_MOM_PREG_TV(mnh07)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m07 >1)) {
-    VarNamesExtra_m07 = cbind(Form = "MNH07", VarNamesExtra_m07)
+  # export key variables if duplicates exists 
+  m07_id_dup <- m07_id_dup %>% select(MOMID, PREGID, TYPE_VISIT, MAT_SPEC_COLLECT_DAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m07_id_dup >1)) {
+    m07_id_dup = cbind(SCRNID = "NA", m07_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m07_id_dup >1)) {
+    names(m07_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column
+  m07_id_dup <- add_column(m07_id_dup,Form = "MNH07")
+  
+  ## only need to include 1 instance of the duplicate
+  m07_id_dup <- m07_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m07 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m07)
+  if (nrow(m07_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m07_id_dup)
   }
   
-  if (length(VarNamesExtra_m07 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m07)
-  }
 }
-#*****************************************************************************
-#*MNH08
-#*****************************************************************************
+#****************************************
+#* MNH08
+#****************************************
 if (exists("mnh08")==TRUE){
   
-  #*get variable list for MNH08 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH08") %>% select("VarName")
-  VarNames_m08 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH08 from data  
-  VarNames_data <- colnames(mnh08) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m08 <- as.data.frame(setdiff(VarNames_m08,VarNames_data))
-  names(VarNamesMissing_m08) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m08 >1)) {
-    VarNamesMissing_m08 = cbind(Form = "MNH08", VarNamesMissing_m08)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m08 <- as.data.frame(setdiff(VarNames_data,VarNames_m08))
-  names(VarNamesExtra_m08) = "Extra Variables"
+  m08_id_dup <- dup_MOM_PREG_TV(mnh08)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m08 >1)) {
-    VarNamesExtra_m08 = cbind(Form = "MNH08", VarNamesExtra_m08)
+  # export key variables if duplicates exists 
+  m08_id_dup <- m08_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, LBSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m08_id_dup >1)) {
+    m08_id_dup = cbind(SCRNID = "NA", m08_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m08_id_dup >1)) {
+    names(m08_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m08_id_dup <- add_column(m08_id_dup,Form = "MNH08")
+  
+  ## only need to include 1 instance of the duplicate
+  m08_id_dup <- m08_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m08 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m08)
+  if (nrow(m08_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m08_id_dup)
   }
   
-  if (length(VarNamesExtra_m08 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m08)
-  }
 }
-#*****************************************************************************
-#*MNH09
-#*****************************************************************************
+#****************************************
+#* MNH09
+#****************************************
 if (exists("mnh09")==TRUE){
   
-  #*get variable list for MNH09 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH09") %>% select("VarName")
-  VarNames_m09 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH09 from data  
-  VarNames_data <- colnames(mnh09) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m09 <- as.data.frame(setdiff(VarNames_m09,VarNames_data))
-  names(VarNamesMissing_m09) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m09 >1)) {
-    VarNamesMissing_m09 = cbind(Form = "MNH09", VarNamesMissing_m09)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m09 <- as.data.frame(setdiff(VarNames_data,VarNames_m09))
-  names(VarNamesExtra_m09) = "Extra Variables"
+  m09_id_dup <- dup_MOMID_PREGID(mnh09)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m09 >1)) {
-    VarNamesExtra_m09 = cbind(Form = "MNH09", VarNamesExtra_m09)
+  # export key variables if duplicates exists 
+  m09_id_dup <- m09_id_dup %>% select(MOMID, PREGID, MAT_LD_OHOSTDAT)
+  
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m09_id_dup >1)) {
+    m09_id_dup = cbind(SCRNID = "NA", m09_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m09_id_dup >1)) {
+    m09_id_dup = add_column(m09_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m09_id_dup >1)) {
+    names(m09_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m09_id_dup <- add_column(m09_id_dup,Form = "MNH09")
+  
+  ## only need to include 1 instance of the duplicate
+  m09_id_dup <- m09_id_dup %>% unique() 
+  
   
   #*bind with other forms
-  if (length(VarNamesMissing_m09 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m09)
-  }
-  
-  if (length(VarNamesExtra_m09 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m09)
+  if (nrow(m09_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m09_id_dup)
   }
 }
-#*****************************************************************************
-#*MNH10
-#*****************************************************************************
+#****************************************
+#* MNH10
+#****************************************
 if (exists("mnh10")==TRUE){
   
-  #*get variable list for MNH10 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH10") %>% select("VarName")
-  VarNames_m10 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH10 from data  
-  VarNames_data <- colnames(mnh10) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m10 <- as.data.frame(setdiff(VarNames_m10,VarNames_data))
-  names(VarNamesMissing_m10) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m10 >1)) {
-    VarNamesMissing_m10 = cbind(Form = "MNH10", VarNamesMissing_m10)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m10 <- as.data.frame(setdiff(VarNames_data,VarNames_m10))
-  names(VarNamesExtra_m10) = "Extra Variables"
+  m10_id_dup <- dup_MOMID_PREGID(mnh10)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m10 >1)) {
-    VarNamesExtra_m10 = cbind(Form = "MNH10", VarNamesExtra_m10)
+  # export key variables if duplicates exists 
+  m10_id_dup <- m10_id_dup %>% select(MOMID, PREGID, FORMCOMPLDAT_MNH10) ## kenya missing date var here 
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m10_id_dup >1)) {
+    m10_id_dup = cbind(SCRNID = "NA", m10_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m10_id_dup >1)) {
+    m10_id_dup = add_column(m10_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m10_id_dup >1)) {
+    names(m10_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m10_id_dup <- add_column(m10_id_dup,Form = "MNH10")
+  
+  ## only need to include 1 instance of the duplicate
+  m10_id_dup <- m10_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m10 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m10)
+  if (nrow(m10_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m10_id_dup)
   }
   
-  if (length(VarNamesExtra_m10 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m10)
-  }
 }
-#*****************************************************************************
-#*MNH11
-#*****************************************************************************
+
+#****************************************
+#* MNH11 (INFANT FORM) -- create new variable names for duplicates for infants and merge later
+#****************************************
 if (exists("mnh11")==TRUE){
   
-  #*get variable list for MNH11 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH11") %>% select("VarName")
-  VarNames_m11 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH11 from data  
-  VarNames_data <- colnames(mnh11) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m11 <- as.data.frame(setdiff(VarNames_m11,VarNames_data))
-  names(VarNamesMissing_m11) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m11 >1)) {
-    VarNamesMissing_m11 = cbind(Form = "MNH11", VarNamesMissing_m11)
+  dup_INFANTID <- function(form) {
+    ID <- form %>% 
+      select(INFANTID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(INFANTID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m11 <- as.data.frame(setdiff(VarNames_data,VarNames_m11))
-  names(VarNamesExtra_m11) = "Extra Variables"
+  m11_id_dup <- dup_INFANTID(mnh11)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m11 >1)) {
-    VarNamesExtra_m11 = cbind(Form = "MNH11", VarNamesExtra_m11)
+  # export key variables if duplicates exists 
+  m11_id_dup <- m11_id_dup %>% select(MOMID, PREGID,INFANTID, VISIT_OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m11_id_dup >1)) {
+    m11_id_dup = cbind(SCRNID = "NA", m11_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m11_id_dup >1)) {
+    m11_id_dup = add_column(m11_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m11_id_dup >1)) {
+    names(m11_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m11_id_dup <- add_column(m11_id_dup,Form = "MNH11")
+  
+  ## only need to include 1 instance of the duplicate
+  m11_id_dup <- m11_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m11 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m11)
+  if (nrow(m11_id_dup >1)){
+    VarNamesDuplicate_Inf <- m11_id_dup
   }
-  
-  if (length(VarNamesExtra_m11 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m11)
-  }
-  
 }
-#*****************************************************************************
-#*MNH12
-#*****************************************************************************
+#****************************************
+#* MNH12
+#****************************************
+#*
+#*PNC_N_VISIT
 if (exists("mnh12")==TRUE){
   
-  #*get variable list for MNH12 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH12") %>% select("VarName")
-  VarNames_m12 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH12 from data  
-  VarNames_data <- colnames(mnh12) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m12 <- as.data.frame(setdiff(VarNames_m12,VarNames_data))
-  names(VarNamesMissing_m12) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m12 >1)) {
-    VarNamesMissing_m12 = cbind(Form = "MNH12", VarNamesMissing_m12)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m12 <- as.data.frame(setdiff(VarNames_data,VarNames_m12))
-  names(VarNamesExtra_m12) = "Extra Variables"
+  m12_id_dup <- dup_MOM_PREG_TV(mnh12)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m12 >1)) {
-    VarNamesExtra_m12 = cbind(Form = "MNH12", VarNamesExtra_m12)
+  # export key variables if duplicates exists 
+  m12_id_dup <- m12_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, VISIT_OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m12_id_dup >1)) {
+    m12_id_dup = cbind(SCRNID = "NA", m12_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m12_id_dup >1)) {
+    names(m12_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m12_id_dup <- add_column(m12_id_dup,Form = "MNH12")
+  
+  ## only need to include 1 instance of the duplicate
+  m12_id_dup <- m12_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m12 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m12)
+  if (nrow(m12_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m12_id_dup)
   }
-  
-  if (length(VarNamesExtra_m12 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m12)
-  }
-  
 }
-
-#*****************************************************************************
-#*mnh13
-#*****************************************************************************
+#****************************************
+#* MNH13(INFANT FORM) 
+#****************************************
 if (exists("mnh13")==TRUE){
   
-  #*get variable list for MNH13 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH13") %>% select("VarName")
-  VarNames_m13 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH13 from data  
-  VarNames_data <- colnames(mnh13) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m13 <- as.data.frame(setdiff(VarNames_m13,VarNames_data))
-  names(VarNamesMissing_m13) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m13 >1)) {
-    VarNamesMissing_m13 = cbind(Form = "MNH13", VarNamesMissing_m13)
+  dup_INF_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m13 <- as.data.frame(setdiff(VarNames_data,VarNames_m13))
-  names(VarNamesExtra_m13) = "Extra Variables"
+  m13_id_dup <- dup_INF_TV(mnh13)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m13 >1)) {
-    VarNamesExtra_m13 = cbind(Form = "MNH13", VarNamesExtra_m13)
+  # export key variables if duplicates exists 
+  m13_id_dup <- m13_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, VISIT_OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m13_id_dup >1)) {
+    m13_id_dup = cbind(SCRNID = "NA", m13_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m13_id_dup >1)) {
+    names(m13_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m13_id_dup <- add_column(m13_id_dup,Form = "MNH13")
+  
+  ## only need to include 1 instance of the duplicate
+  m13_id_dup <- m13_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m13 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m13)
-  }
-  
-  if (length(VarNamesExtra_m13 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m13)
-  }
-  
+  if (nrow(m13_id_dup >1)){
+    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m13_id_dup)
+  } 
 }
-#*****************************************************************************
-#*MNH14
-#*****************************************************************************
+#****************************************
+#* MNH14(INFANT FORM) 
+#****************************************
 if (exists("mnh14")==TRUE){
   
-  #*get variable list for MNH14 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH14") %>% select("VarName")
-  VarNames_m14 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH14 from data  
-  VarNames_data <- colnames(mnh14) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m14 <- as.data.frame(setdiff(VarNames_m14,VarNames_data))
-  names(VarNamesMissing_m14) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m14 >1)) {
-    VarNamesMissing_m14 = cbind(Form = "MNH14", VarNamesMissing_m14)
+  dup_INF_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m14 <- as.data.frame(setdiff(VarNames_data,VarNames_m14))
-  names(VarNamesExtra_m14) = "Extra Variables"
+  m14_id_dup <- dup_INF_TV(mnh14)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m14 >1)) {
-    VarNamesExtra_m14 = cbind(Form = "MNH14", VarNamesExtra_m14)
+  # export key variables if duplicates exists 
+  m14_id_dup <- m14_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, VISIT_OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m14_id_dup >1)) {
+    m14_id_dup = cbind(SCRNID = "NA", m14_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m14_id_dup >1)) {
+    names(m14_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m14_id_dup <- add_column(m14_id_dup,Form = "MNH14")
+  
+  ## only need to include 1 instance of the duplicate
+  m14_id_dup <- m14_id_dup %>% unique() 
+  
   
   #*bind with other forms
-  if (length(VarNamesMissing_m14 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m14)
-  }
-  
-  if (length(VarNamesExtra_m14 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m14)
-  }
+  if (nrow(m14_id_dup >1)){
+    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m14_id_dup)
+  } 
 }
-#*****************************************************************************
-#*MNH15
-#*****************************************************************************
+#****************************************
+#* MNH15 (INFANT FORM) 
+#****************************************
 if (exists("mnh15")==TRUE){
   
-  #*get variable list for MNH15 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH15") %>% select("VarName")
-  VarNames_m15 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH15 from data  
-  VarNames_data <- colnames(mnh15) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m15 <- as.data.frame(setdiff(VarNames_m15,VarNames_data))
-  names(VarNamesMissing_m15) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m15 >1)) {
-    VarNamesMissing_m15 = cbind(Form = "MNH15", VarNamesMissing_m15)
+  dup_INF_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID,INFANTID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID,INFANTID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m15 <- as.data.frame(setdiff(VarNames_data,VarNames_m15))
-  names(VarNamesExtra_m15) = "Extra Variables"
+  m15_id_dup <- dup_INF_TV(mnh15)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m15 >1)) {
-    VarNamesExtra_m15 = cbind(Form = "MNH15", VarNamesExtra_m15)
+  # export key variables if duplicates exists 
+  m15_id_dup <- m15_id_dup %>% select(MOMID, PREGID,INFANTID,TYPE_VISIT, OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m15_id_dup >1)) {
+    m15_id_dup = cbind(SCRNID = "NA", m15_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m15_id_dup >1)) {
+    names(m15_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column
+  m15_id_dup <- add_column(m15_id_dup,Form = "MNH15")
+  
+  ## only need to include 1 instance of the duplicate
+  m15_id_dup <- m15_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m15 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m15)
-  }
-  
-  if (length(VarNamesExtra_m15 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m15)
-  }
-  
+  if (nrow(m15_id_dup >1)){
+    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m15_id_dup)
+  } 
 }
-#*****************************************************************************
-#*MNH16
-#*****************************************************************************
+#****************************************
+#* MNH16
+#****************************************
 if (exists("mnh16")==TRUE){
   
-  #*get variable list for MNH16 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH16") %>% select("VarName")
-  VarNames_m16 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH16 from data  
-  VarNames_data <- colnames(mnh16) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m16 <- as.data.frame(setdiff(VarNames_m16,VarNames_data))
-  names(VarNamesMissing_m16) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m16 >1)) {
-    VarNamesMissing_m16 = cbind(Form = "MNH16", VarNamesMissing_m16)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m16 <- as.data.frame(setdiff(VarNames_data,VarNames_m16))
-  names(VarNamesExtra_m16) = "Extra Variables"
+  m16_id_dup <- dup_MOMID_PREGID(mnh16)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m16 >1)) {
-    VarNamesExtra_m16 = cbind(Form = "MNH16", VarNamesExtra_m16)
+  # export key variables if duplicates exists 
+  m16_id_dup <- m16_id_dup %>% select(MOMID, PREGID, VISDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m16_id_dup >1)) {
+    m16_id_dup = cbind(SCRNID = "NA", m16_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m16_id_dup >1)) {
+    m16_id_dup = add_column(m16_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m16_id_dup >1)) {
+    names(m16_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  
+  # add form column 
+  m16_id_dup <- add_column(m16_id_dup,Form = "MNH16")
+  
+  ## only need to include 1 instance of the duplicate
+  m16_id_dup <- m16_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m16 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m16)
+  if (nrow(m16_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m16_id_dup)
   }
-  
-  if (length(VarNamesExtra_m16 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m16)
-  }
-  
 }
-#*****************************************************************************
-#*MNH17
-#*****************************************************************************
+#****************************************
+#* MNH17
+#****************************************
 if (exists("mnh17")==TRUE){
   
-  #*get variable list for MNH17 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH17") %>% select("VarName")
-  VarNames_m17 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH17 from data  
-  VarNames_data <- colnames(mnh17) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m17 <- as.data.frame(setdiff(VarNames_m17,VarNames_data))
-  names(VarNamesMissing_m17) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m17 >1)) {
-    VarNamesMissing_m17 = cbind(Form = "MNH17", VarNamesMissing_m17)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m17 <- as.data.frame(setdiff(VarNames_data,VarNames_m17))
-  names(VarNamesExtra_m17) = "Extra Variables"
+  m17_id_dup <- dup_MOMID_PREGID(mnh17)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m17 >1)) {
-    VarNamesExtra_m17 = cbind(Form = "MNH17", VarNamesExtra_m17)
+  # export key variables if duplicates exists 
+  m17_id_dup <- m17_id_dup %>% select(MOMID, PREGID, VISDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m17_id_dup >1)) {
+    m17_id_dup = cbind(SCRNID = "NA", m17_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m17_id_dup >1)) {
+    m17_id_dup = add_column(m17_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m17_id_dup >1)) {
+    names(m17_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m17_id_dup <- add_column(m17_id_dup,Form = "MNH17")
+  
+  ## only need to include 1 instance of the duplicate
+  m17_id_dup <- m17_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m17 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m17)
-  }
-  
-  if (length(VarNamesExtra_m17 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m17)
+  if (nrow(m17_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m17_id_dup)
   }
 }
-
-#*****************************************************************************
-#*MNH18
-#*****************************************************************************
+#****************************************
+#* MNH18
+#****************************************
 if (exists("mnh18")==TRUE){
   
-  #*get variable list for MNH18 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH18") %>% select("VarName")
-  VarNames_m18 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH18 from data  
-  VarNames_data <- colnames(mnh18) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m18 <- as.data.frame(setdiff(VarNames_m18,VarNames_data))
-  names(VarNamesMissing_m18) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m18 >1)) {
-    VarNamesMissing_m18 = cbind(Form = "MNH18", VarNamesMissing_m18)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m18 <- as.data.frame(setdiff(VarNames_data,VarNames_m18))
-  names(VarNamesExtra_m18) = "Extra Variables"
+  m18_id_dup <- dup_MOMID_PREGID(mnh18)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m18 >1)) {
-    VarNamesExtra_m18 = cbind(Form = "MNH18", VarNamesExtra_m18)
+  # export key variables if duplicates exists 
+  m18_id_dup <- m18_id_dup %>% select(MOMID, PREGID, VISDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m18_id_dup >1)) {
+    m18_id_dup = cbind(SCRNID = "NA", m18_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m18_id_dup >1)) {
+    m18_id_dup = add_column(m18_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m18_id_dup >1)) {
+    names(m18_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m18_id_dup <- add_column(m18_id_dup,Form = "MNH18")
+  
+  ## only need to include 1 instance of the duplicate
+  m18_id_dup <- m18_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m18 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m18)
+  if (nrow(m18_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m18_id_dup)
   }
-  
-  if (length(VarNamesExtra_m18 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m18)
-  }
-  
 }
-#*****************************************************************************
-#*MNH19
-#*****************************************************************************
+#****************************************
+#* MNH19
+#****************************************
 if (exists("mnh19")==TRUE){
   
-  #*get variable list for MNH19 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH19") %>% select("VarName")
-  VarNames_m19 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH19 from data  
-  VarNames_data <- colnames(mnh19) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m19 <- as.data.frame(setdiff(VarNames_m19,VarNames_data))
-  names(VarNamesMissing_m19) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m19 >1)) {
-    VarNamesMissing_m19 = cbind(Form = "MNH19", VarNamesMissing_m19)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, OBSSTDAT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, OBSSTDAT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m19 <- as.data.frame(setdiff(VarNames_data,VarNames_m19))
-  names(VarNamesExtra_m19) = "Extra Variables"
+  m19_id_dup <- dup_MOM_PREG_TV(mnh19)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m19 >1)) {
-    VarNamesExtra_m19 = cbind(Form = "MNH19", VarNamesExtra_m19)
+  # export key variables if duplicates exists 
+  m19_id_dup <- m19_id_dup %>% select(MOMID, PREGID, OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m19_id_dup >1)) {
+    m19_id_dup = cbind(SCRNID = "NA", m19_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m19_id_dup >1)) {
+    m19_id_dup = add_column(m19_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m19_id_dup >1)) {
+    names(m19_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m19_id_dup <- add_column(m19_id_dup,Form = "MNH19")
+  
+  ## only need to include 1 instance of the duplicate
+  m19_id_dup <- m19_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m19 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m19)
+  if (nrow(m19_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m19_id_dup)
   }
-  
-  if (length(VarNamesExtra_m19 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m19)
-  }
-  
 }
-#*****************************************************************************
-#*MNH20
-#*****************************************************************************
+#****************************************
+#* MNH20 (INFANT FORM) 
+#****************************************
 if (exists("mnh20")==TRUE){
   
-  #*get variable list for MNH20 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH20") %>% select("VarName")
-  VarNames_m20 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH20 from data  
-  VarNames_data <- colnames(mnh20) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m20 <- as.data.frame(setdiff(VarNames_m20,VarNames_data))
-  names(VarNamesMissing_m20) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m20 >1)) {
-    VarNamesMissing_m20 = cbind(Form = "MNH20", VarNamesMissing_m20)
+  dup_INF_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, INFANTID, OBSSTDAT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, INFANTID,  OBSSTDAT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m20 <- as.data.frame(setdiff(VarNames_data,VarNames_m20))
-  names(VarNamesExtra_m20) = "Extra Variables"
+  m20_id_dup <- dup_INF_TV(mnh20)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m20 >1)) {
-    VarNamesExtra_m20 = cbind(Form = "MNH20", VarNamesExtra_m20)
+  # export key variables if duplicates exists 
+  m20_id_dup <- m20_id_dup %>% select(MOMID, PREGID,INFANTID, OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m20_id_dup >1)) {
+    m20_id_dup = cbind(SCRNID = "NA", m20_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m20_id_dup >1)) {
+    m20_id_dup = add_column(m20_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m20_id_dup >1)) {
+    names(m20_id_dup) = c("SCRNID","MOMID", "PREGID","InfantID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m20_id_dup <- add_column(m20_id_dup,Form = "MNH20")
+  
+  ## only need to include 1 instance of the duplicate
+  m20_id_dup <- m20_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m20 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m20)
-  }
-  
-  if (length(VarNamesExtra_m20 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m20)
-  }
+  if (nrow(m20_id_dup >1)){
+    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m20_id_dup)
+  } 
   
 }
-#*****************************************************************************
-#*MNH21
-#*****************************************************************************
+
+#****************************************
+#* MNH21 -- save as separate form 
+#* VarNamesDuplicate_adverse
+#****************************************
 if (exists("mnh21")==TRUE){
   
-  #*get variable list for MNH21 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH21") %>% select("VarName")
-  VarNames_m21 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH21 from data  
-  VarNames_data <- colnames(mnh21) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m21 <- as.data.frame(setdiff(VarNames_m21,VarNames_data))
-  names(VarNamesMissing_m21) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m21 >1)) {
-    VarNamesMissing_m21 = cbind(Form = "MNH21", VarNamesMissing_m21)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, INFANTID, AESTDAT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID,INFANTID, AESTDAT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m21 <- as.data.frame(setdiff(VarNames_data,VarNames_m21))
-  names(VarNamesExtra_m21) = "Extra Variables"
+  m21_id_dup <- dup_MOM_PREG_TV(mnh21)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m21 >1)) {
-    VarNamesExtra_m21 = cbind(Form = "MNH21", VarNamesExtra_m21)
+  # export key variables if duplicates exists 
+  m21_id_dup <- m21_id_dup %>% select(MOMID, PREGID, INFANTID, AESTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m21_id_dup >1)) {
+    m21_id_dup = cbind(SCRNID = "NA", m21_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m21_id_dup >1)) {
+    m21_id_dup = add_column(m21_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m21_id_dup >1)) {
+    names(m21_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m21_id_dup <- add_column(m21_id_dup,Form = "MNH21")
+  
+  ## only need to include 1 instance of the duplicate
+  m21_id_dup <- m21_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m21 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m21)
-  }
-  
-  if (length(VarNamesExtra_m21 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m21)
+  if (nrow(m21_id_dup >1)){
+    VarNamesDuplicate_adverse <-  m21_id_dup
   }
 }
 
-#*****************************************************************************
-#*MNH22
-#*****************************************************************************
+#****************************************
+#* MNH22
+#****************************************
 if (exists("mnh22")==TRUE){
   
-  #*get variable list for MNH22 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH22") %>% select("VarName")
-  VarNames_m22 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH22 from data  
-  VarNames_data <- colnames(mnh22) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m22 <- as.data.frame(setdiff(VarNames_m22,VarNames_data))
-  names(VarNamesMissing_m22) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m22 >1)) {
-    VarNamesMissing_m22 = cbind(Form = "MNH22", VarNamesMissing_m22)
+  dup_INF_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, DVSTDAT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, DVSTDAT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m22 <- as.data.frame(setdiff(VarNames_data,VarNames_m22))
-  names(VarNamesExtra_m22) = "Extra Variables"
+  m22_id_dup <- dup_INF_TV(mnh22)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m22 >1)) {
-    VarNamesExtra_m22 = cbind(Form = "MNH22", VarNamesExtra_m22)
+  # export key variables if duplicates exists 
+  m22_id_dup <- m22_id_dup %>% select(MOMID, PREGID,INFANTID, DVSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m22_id_dup >1)) {
+    m22_id_dup = cbind(SCRNID = "NA", m22_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m22_id_dup >1)) {
+    m22_id_dup = add_column(m22_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m22_id_dup >1)) {
+    names(m22_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m22_id_dup <- add_column(m22_id_dup,Form = "MNH22")
+  
+  ## only need to include 1 instance of the duplicate
+  m22_id_dup <- m22_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m22 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m22)
-  }
+  if (nrow(m22_id_dup >1)){
+    VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m22_id_dup)
+  } 
   
-  if (length(VarNamesExtra_m22 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m22)
-  }
 }
-#*****************************************************************************
-#*MNH23
-#*****************************************************************************
+#****************************************
+#* MNH23
+#****************************************
 if (exists("mnh23")==TRUE){
   
-  #*get variable list for MNH23 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH23") %>% select("VarName")
-  VarNames_m23 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH23 from data  
-  VarNames_data <- colnames(mnh23) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m23 <- as.data.frame(setdiff(VarNames_m23,VarNames_data))
-  names(VarNamesMissing_m23) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m23 >1)) {
-    VarNamesMissing_m23 = cbind(Form = "MNH23", VarNamesMissing_m23)
+  dup_MOMID_PREGID <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m23 <- as.data.frame(setdiff(VarNames_data,VarNames_m23))
-  names(VarNamesExtra_m23) = "Extra Variables"
+  m23_id_dup <- dup_MOMID_PREGID(mnh23)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m23 >1)) {
-    VarNamesExtra_m23 = cbind(Form = "MNH23", VarNamesExtra_m23)
+  # export key variables if duplicates exists 
+  m23_id_dup <- m23_id_dup %>% select(MOMID, PREGID, CLOSE_DSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m23_id_dup >1)) {
+    m23_id_dup = cbind(SCRNID = "NA", m23_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m23_id_dup >1)) {
+    m23_id_dup = add_column(m23_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m23_id_dup >1)) {
+    names(m23_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m23_id_dup <- add_column(m23_id_dup,Form = "MNH23")
+  
+  ## only need to include 1 instance of the duplicate
+  m23_id_dup <- m23_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m23 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m23)
-  }
-  
-  if (length(VarNamesExtra_m23 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m23)
+  if (nrow(m23_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m23_id_dup)
   }
 }
-#*****************************************************************************
-#*MNH24
-#*****************************************************************************
+#****************************************
+#* MNH24
+#****************************************
 if (exists("mnh24")==TRUE){
   
-  #*get variable list for MNH24 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH24") %>% select("VarName")
-  VarNames_m24 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH24 from data  
-  VarNames_data <- colnames(mnh24) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m24 <- as.data.frame(setdiff(VarNames_m24,VarNames_data))
-  names(VarNamesMissing_m24) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m24 >1)) {
-    VarNamesMissing_m24 = cbind(Form = "MNH24", VarNamesMissing_m24)
+  dup_INFANTID <- function(form) {
+    ID <- form %>% 
+      select(INFANTID)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(INFANTID)
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m24 <- as.data.frame(setdiff(VarNames_data,VarNames_m24))
-  names(VarNamesExtra_m24) = "Extra Variables"
+  m24_id_dup <- dup_INFANTID(mnh24)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m24 >1)) {
-    VarNamesExtra_m24 = cbind(Form = "MNH24", VarNamesExtra_m24)
+  # export key variables if duplicates exists 
+  m24_id_dup <- m24_id_dup %>% select(MOMID, PREGID,INFANTID, CLOSE_DSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m24_id_dup >1)) {
+    m24_id_dup = cbind(SCRNID = "NA", m24_id_dup)
   }
+  
+  # add visit type column  if duplicates exist 
+  if (length(m24_id_dup >1)) {
+    m24_id_dup = add_column(m24_id_dup,VisitType = NA , .after = "PREGID")
+  }
+  
+  # rename columns if duplicates exist 
+  if (length(m24_id_dup >1)) {
+    names(m24_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m24_id_dup <- add_column(m24_id_dup,Form = "MNH24")
+  
+  ## only need to include 1 instance of the duplicate
+  m24_id_dup <- m24_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m24 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m24)
-  }
-  
-  if (length(VarNamesExtra_m24 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m24)
+  if (nrow(m24_id_dup >1)){
+    VarNamesDuplicate_Inf <- m24_id_dup
   }
 }
 
-#*****************************************************************************
-#*MNH25
-#*****************************************************************************
+#****************************************
+#* MNH25
+#****************************************
 if (exists("mnh25")==TRUE){
-  
-  #*get variable list for MNH25 from data dictionary 
-  VarNames_form <- variable_names %>%  filter(Form == paste0("MNH25_", site))
-  
-  VarNames_m25 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH25 from data  
-  VarNames_data <- colnames(mnh25) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m25 <- as.data.frame(setdiff(VarNames_m25,VarNames_data))
-  names(VarNamesMissing_m25) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m25 >1)) {
-    VarNamesMissing_m25 = cbind(Form = "MNH25", VarNamesMissing_m25)
+  ## replaced TYPE_VISIT with ANC_VISIT_N
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m25 <- as.data.frame(setdiff(VarNames_data,VarNames_m25))
-  names(VarNamesExtra_m25) = "Extra Variables"
+  m25_id_dup <- dup_MOM_PREG_TV(mnh25)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m25 >1)) {
-    VarNamesExtra_m25 = cbind(Form = "MNH25", VarNamesExtra_m25)
+  # export key variables if duplicates exists 
+  m25_id_dup <- m25_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, OBSSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m25_id_dup >1)) {
+    m25_id_dup = cbind(SCRNID = "NA", m25_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m25_id_dup >1)) {
+    names(m25_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m25_id_dup <- add_column(m25_id_dup,Form = "MNH25")
+  
+  ## only need to include 1 instance of the duplicate
+  m25_id_dup <- m25_id_dup %>% unique() 
   
   #*bind with other forms
-  if (length(VarNamesMissing_m25 > 1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m25)
-  }
-  
-  if (length(VarNamesExtra_m25 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m25)
+  if (nrow(m25_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m25_id_dup)
   }
 }
-
-#*****************************************************************************
-#*MNH26
-#*****************************************************************************
+#****************************************
+#* MNH26
+#****************************************
 if (exists("mnh26")==TRUE){
   
-  #*get variable list for MNH26 from data dictionary 
-  VarNames_form <- variable_names %>% filter(Form == "MNH26") %>% select("VarName")
-  VarNames_m26 = as.vector(VarNames_form$VarName)
-  
-  #*get variable list for MNH26 from data  
-  VarNames_data <- colnames(mnh26) 
-  
-  #*compare the variables that are in the data dictionary but are not in the data. These will be missing variables 
-  VarNamesMissing_m26 <- as.data.frame(setdiff(VarNames_m26,VarNames_data))
-  names(VarNamesMissing_m26) = "Missing Variables"
-  
-  # name data by form if missing exist 
-  if (length(VarNamesMissing_m26 >1)) {
-    VarNamesMissing_m26 = cbind(Form = "MNH26", VarNamesMissing_m26)
+  dup_MOM_PREG_TV <- function(form) {
+    ID <- form %>% 
+      select(MOMID, PREGID, TYPE_VISIT)
+    dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+      arrange(MOMID, PREGID, TYPE_VISIT) 
+    dupID <-print(dup, n=nrow(dup), na.print=NULL)
+    return(dup)
   }
   
-  #*compare the variables that are in the data but not in the data dictionary. These will be extra variables
-  VarNamesExtra_m26 <- as.data.frame(setdiff(VarNames_data,VarNames_m26))
-  names(VarNamesExtra_m26) = "Extra Variables"
+  m26_id_dup <- dup_MOM_PREG_TV(mnh26)
   
-  # name data by form if extra exist 
-  if (length(VarNamesExtra_m26 >1)) {
-    VarNamesExtra_m26 = cbind(Form = "MNH26", VarNamesExtra_m26)
+  # export key variables if duplicates exists 
+  m26_id_dup <- m26_id_dup %>% select(MOMID, PREGID,TYPE_VISIT, FTGE_OBSTDAT)
+  
+  # add SCRNID column if duplicates exist 
+  if (length(m26_id_dup >1)) {
+    m26_id_dup = cbind(SCRNID = "NA", m26_id_dup)
   }
+  
+  # rename columns if duplicates exist 
+  if (length(m26_id_dup >1)) {
+    names(m26_id_dup) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate")
+  }
+  
+  # add form column 
+  m26_id_dup <- add_column(m26_id_dup,Form = "MNH26")
+  
+  ## only need to include 1 instance of the duplicate
+  m26_id_dup <- m26_id_dup %>% unique() 
+  
   
   #*bind with other forms
-  if (length(VarNamesMissing_m26 >1)){
-    VarNamesMissing <- rbind(VarNamesMissing, VarNamesMissing_m26)
-  }
-  
-  if (length(VarNamesExtra_m26 >1)){
-    VarNamesExtra <- rbind(VarNamesExtra, VarNamesExtra_m26)
+  if (nrow(m26_id_dup >1)){
+    VarNamesDuplicate <- rbind(VarNamesDuplicate, m26_id_dup)
   }
 }
 
-#*****************************************************************************
-#* Organize the data to match the query report template 
-#*****************************************************************************
-if (dim(VarNamesMissing)[1] > 1){
-  
-  # update naming 
-  names(VarNamesMissing) = c("Form", "Variable Name")
-  
-  # remove first empty row 
-  VarNamesMissing = VarNamesMissing[-1,]
-  
-  ## add additional columns 
-  VarNamesMissing = cbind(QueryID = NA, 
+#****************************************
+#* ADJUST FOR VISIT TYPE = 13
+#****************************************
+## since a woman can have multiple visit type = 13 for each form, we need to find any duplicate women who have the same visit type = 13 AND visit date
+# create new sub dataset so extract visit type 13 
+VarNamesDuplicate_visit13 = VarNamesDuplicate %>%  filter(VisitType == 13)
+
+dup_visit_13 <- function(form) {
+  ID <- form %>% 
+    select(MOMID, PREGID, VisitDate)
+  dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+    arrange(MOMID, PREGID, VisitDate) 
+  dupID <-print(dup, n=nrow(dup), na.print=NULL)
+  return(dup)
+}
+
+# this will produce the list of true duplicate visit type = 13s that have the same visit day 
+dup_visit_13_out <- dup_visit_13(VarNamesDuplicate_visit13)
+
+# to finalize the duplicate query output, we need to replace the old visit type = 13 queries pull and replace with these new queries 
+# step 1. remove old visit = 13 queries pulled from all of the codes above
+VarNamesDuplicate = VarNamesDuplicate %>% filter(VisitType != 13) ## keep everything but visit type = 13
+# step 2. re-bind the visit type = 13 that we just fixed 
+VarNamesDuplicate = rbind(VarNamesDuplicate, VarNamesDuplicate_visit13)
+
+# fix random issues with VarNamesDuplicate_Inf visit type class 
+VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
+
+#****************************************
+#* BIND ALL DATA FRAMES 
+#****************************************
+# add infant id column to momid dataframe 
+names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
+VarNamesDuplicate <- add_column(VarNamesDuplicate, INFANTID = NA, .after = "PREGID")
+
+## update variable value variable name column to represent if the duplicate is a momid or scrnid 
+VarNamesDuplicate <- VarNamesDuplicate %>% 
+  mutate(`Variable Value` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , SCRNID, MOMID), 
+         `Variable Name` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , "ScrnID", "MomID"),
+         FieldType = "Text", 
+         EditType = "Duplicate ID"
+         )
+
+## update variable value variable name column to represent the duplicate is an infant id 
+VarNamesDuplicate_Inf <- VarNamesDuplicate_Inf %>% 
+  mutate(`Variable Value` = INFANTID, 
+         `Variable Name` = "InfantID",
+         FieldType = "Text", 
+         EditType = ifelse(is.na(INFANTID),"InfantID missing from infant form", "Duplicate ID")
+  ) %>% 
+  mutate(VisitType = as.character(VarNamesDuplicate_Inf$VisitType))
+
+## bind in duplicate infant ids
+VarNamesDuplicate <- bind_rows(VarNamesDuplicate, VarNamesDuplicate_Inf) %>% unique()
+VarNamesDuplicate <- VarNamesDuplicate %>% filter(!(is.na(MOMID)))
+
+# update naming
+VarNamesDuplicate = VarNamesDuplicate[-1,]
+names(VarNamesDuplicate) = c("ScrnID","MomID", "PregID","InfantID", "VisitType", "VisitDate", "Form", "Variable Name", "Variable Value", "FieldType", "EditType")
+
+## add additional columns 
+VarNamesDuplicate = cbind(QueryID = NA, 
                           UploadDate = UploadDate, 
-                          ScrnID = "NA", MomID = "NA",
-                          PregID = "NA", InfantID = "NA",
-                          VisitType = "NA",
-                          VisitDate = "NA", 
-                          VarNamesMissing, 
-                          `Variable Value` = "NA",
-                          FieldType = "NA", 
-                          EditType = "Missing Variable", 
+                          #MomID = "NA", PregID = "NA",
+                          #VisitDate = "NA", 
+                          VarNamesDuplicate, 
+                          #`Variable Name` = "NA",
+                          #`Variable Value` = "NA",
+                          #FieldType = "Text", 
+                          #EditType = "Duplicate ID", 
                           DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+# combine form/edit type var 
+VarNamesDuplicate$Form_Edit_Type <- paste(VarNamesDuplicate$Form,"_",VarNamesDuplicate$EditType)
+
+## assign queryid -- edit type id for duplicate IDs is 01 
+VarNamesDuplicate <- VarNamesDuplicate %>% 
+  mutate(QueryID = paste0(Form, "_", VisitDate, "_",`Variable Name`, "_", `Variable Value`, "_", "01")
+         )
+
+duplicates_query <- VarNamesDuplicate
+
+#export
+save(duplicates_query, file = paste0(path_to_save, "duplicates_query.rda"))
+
+#*****************************************************************************
+#* Maternal Protocol check - do all enrolled participants have a MNH02 enrollment form 
+#*****************************************************************************
+## extract MOMIDs in enrollment form 
+enroll_momid <- data_long %>% filter(form == "MNH02")
+enroll_momid_vec <- as.vector(unique(enroll_momid$MOMID))
+
+## extract MOMIDs in all forms 
+all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01")
+
+## subset all MOMIDs that have forms 03-25 but not enrollment 
+out<-subset(all_momid, !(all_momid$MOMID %in% enroll_momid$MOMID))
+
+## only need the first four columns
+out <- out %>% select(SCRNID, MOMID, PREGID, INFANTID)
+
+## only need to keep 1 instance of the MOMID 
+out <- out %>% distinct(MOMID, PREGID, INFANTID,  .keep_all = TRUE)
+
+# rename dataframe 
+MomidNotMatched <- out
+
+# update naming
+names(MomidNotMatched) = c("ScrnID","MomID", "PregID","InfantID")
+
+# add visit type column 
+MomidNotMatched <- add_column(MomidNotMatched, VisitType = NA , .after = "InfantID")
+
+if (dim(MomidNotMatched)[1] >= 1){
   
-  # combine form/edit type var 
-  VarNamesMissing$Form_Edit_Type <- paste(VarNamesMissing$Form,"_",VarNamesMissing$EditType)
-  
-  ## assign queryid -- edit type id for missing variables is 03 
-  VarNamesMissing <- VarNamesMissing %>% 
-    mutate(QueryID = paste0(Form, "_", `Variable Name`, "_", "03")
-    )
-  
+## add additional columns 
+MomidNotMatched_query = cbind(QueryID = NA, 
+                              UploadDate = UploadDate, 
+                              #MomID = "NA", PregID = "NA",
+                              VisitDate = "NA", 
+                              MomidNotMatched, 
+                              Form = "NA",
+                              `Variable Name` = "NA",
+                              `Variable Value` = "NA",
+                              FieldType = "Text", 
+                              EditType = "MomID Missing Enrollment Form", 
+                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+
+
+# combine form/edit type var 
+MomidNotMatched_query <- add_column(MomidNotMatched_query,Form_Edit_Type = paste(MomidNotMatched_query$EditType))
+
+# assign momid to the variable value column 
+MomidNotMatched_query <- MomidNotMatched_query %>% 
+  mutate(`Variable Value` = MomID, 
+         `Variable Name` = "MomID")
+
+## assign queryid -- edit type id missing enrollment form is 04
+MomidNotMatched_query <- MomidNotMatched_query %>% 
+  mutate(QueryID = paste0("MissingMNH02", "_", `Variable Name`, "_", `Variable Value`, "_", "04")
+  )
+
+#export Mom ID not matched query 
+save(MomidNotMatched_query, file = paste0(path_to_save, "MomidNotMatched_query.rda"))
+
 }
 
-## assign queryid -- 
-# edit type id for out of range is 05 
-# edit type id for invalid response option is 09
+#*****************************************************************************
+#* Infant Protocol check - are all infants represented in a delivery form
+#*****************************************************************************
+## Extract infant IDs in MNH09 
+deliv_infid <- data_long %>% filter(form == "MNH09")
+deliv_infid_vec <- as.vector(unique(deliv_infid$INFANTID))
 
-if (dim(VarNamesExtra)[1] > 1){
+## extract infant IDs in all infant forms 
+infant_forms <- c("MNH11", "MNH13", "MNH14", "MNH15","MNH20", "MHNH24")
+all_infid <- data_long %>% filter(form %in% infant_forms)
+
+## subset all MOMIDs that have forms 11, 13, 14, 15, 20, & 24,  but not a delivery form 
+out<-subset(all_infid, !(all_infid$INFANTID %in% deliv_infid$INFANTID))
+
+
+## only need the first four columns
+out <- out %>% select(SCRNID, MOMID, PREGID, INFANTID)
+
+## only need to keep 1 instance of the MOMID 
+out <- out %>% distinct(MOMID, PREGID, INFANTID,  .keep_all = TRUE)
+
+# rename dataframe
+InfidNotMatched <- out
+
+# update naming
+names(InfidNotMatched) = c("ScrnID","MomID", "PregID","InfantID")
+
+# current output will print every missing infant for each form FOR EACH VISIT - we only need it to print once. Fix below
+# we can do this by only select unique observations as defined by a unique momid, pregid, infantid, and form 
+# InfidNotMatched <- InfidNotMatched %>% distinct(MomID, PregID,InfantID, Form, .keep_all = TRUE)
+
+# add visit type column 
+InfidNotMatched <- add_column(InfidNotMatched, VisitType = NA , .after = "InfantID")
+
+if (dim(InfidNotMatched)[1] >= 1){
   
-  # update naming 
-  names(VarNamesExtra) = c("Form", "Variable Name")
-  
-  # remove first empty row 
-  VarNamesExtra = VarNamesExtra[-1,]
-  
-  
-  ## add additional columns 
-  VarNamesExtra = cbind(QueryID = NA, 
+## add additional columns 
+InfidNotMatched = cbind(QueryID = NA, 
                         UploadDate = UploadDate, 
-                        ScrnID = "NA", MomID = "NA",
-                        PregID = "NA", InfantID = "NA",
-                        VisitType = "NA",
+                        #MomID = "NA", PregID = "NA",
                         VisitDate = "NA", 
-                        VarNamesExtra, 
+                        InfidNotMatched, 
+                        Form = "NA",
+                        `Variable Name` = "NA",
                         `Variable Value` = "NA",
-                        FieldType = "NA", 
-                        EditType = "Extra Variable", 
+                        FieldType = "Text", 
+                        EditType = "InfantID Missing Delivery Form", 
                         DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-  
-  # combine form/edit type var 
-  VarNamesExtra$Form_Edit_Type <- paste(VarNamesExtra$Form,"_",VarNamesExtra$EditType)
-  
-  ## assign queryid -- edit type id for missing variables is 02 
-  VarNamesExtra <- VarNamesExtra %>% 
-    mutate(QueryID = paste0(Form, "_", `Variable Name`, "_", "02")
-    )
-  
+
+# combine form/edit type var 
+InfidNotMatched_query <- add_column(InfidNotMatched,Form_Edit_Type = paste(InfidNotMatched$EditType))
+
+# reassing momid to the variable value column 
+InfidNotMatched_query <- InfidNotMatched_query %>% 
+  mutate(`Variable Value` = InfantID, 
+         `Variable Name` = "InfantID")
+
+## assign queryid -- edit type id for infant missing delivery form is 07
+InfidNotMatched_query <- InfidNotMatched_query %>% 
+  mutate(QueryID = paste0("MissingMNH09", "_",`Variable Name`, "_", `Variable Value`, "_", "07")
+  )
+
+
+#export Infant ID not matched query 
+save(InfidNotMatched_query, file = paste0(path_to_save, "InfidNotMatched_query.rda"))
+
 }
-
-# merge together 
-missing_query <- rbind(VarNamesMissing, VarNamesExtra)
-
-## export variable checking query 
-save(missing_query, file = paste0(path_to_save, "missing_query.rda"))
-
