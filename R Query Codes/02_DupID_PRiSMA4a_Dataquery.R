@@ -1,26 +1,24 @@
 #*****************************************************************************
 #*QUERY #2 -- CHECK FOR DUPLICATE IDs
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 04 Aug 2023
-    ## included infant id in infant forms (mnh11/13/14/15/20)
-    ## lines: 1268-1325: updated export code to include "missing infantid in infant form" error type
+#* Last updated: 06 September 2023
 
-#*Input: Wide data (all raw .csv files)
-#*Function: identify any duplicate IDs 
-#*Output: .rda file with all duplicate IDs 
-#*****************************************************************************
-#* Items to Update before running script 
-#* You can copy and paste "UPDATE EACH RUN" to find where to update 
-#* 1. Update "UploadDate" 
-#* 2. Set "Site" variable to the site you are running the query for 
+#*Input: Wide data (all raw .csv files) & Long data 
+#*Functions: 
+    # Duplicate IDs: identifies any duplicate IDs present in the data 
+    # Maternal Protocol check: do all enrolled participants have a MNH02 enrollment form?
+    # Infant Protocol check: are all infants represented in a delivery form
+#*Output: 
+    # .rda file with all duplicate IDs (duplicates_query.rda)
+    # .rda file with all MomIDs missing an enrollment form (MomidNotMatched_query.rda)
+    # .rda file with all InfantIDs missing from a delivery form (InfidNotMatched_query.rda)
 
-#* Once the previous lines of code are updated, you can start to run the script 
 #* Notes: 
 #* If you get an error that says it cannot bind because there are 0 rows, that means there are no duplicates 
 #*****************************************************************************
-
-# clear environment 
-rm(list = ls())
+#*****************************************************************************
+#* Data Setup
+#*****************************************************************************
 
 # load packages 
 library(tidyverse)
@@ -31,34 +29,38 @@ library(dplyr)
 library(data.table)
 library(lubridate)
 
-## UPDATE EACH RUN ## 
-# 1. Update "UploadDate" (this should match the folder name in synapse)
-# 2. Set "Site" variable to the site you are running the query for 
-UploadDate = "2023-07-28"
-Site = "Ghana"
+# UPDATE EACH RUN: set site variable - this is necessary to call in the correct MNH25 variables from the data dictionary (each site has their own MNH25)
+site = "Kenya"
+
+# UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
+UploadDate = "2023-08-25"
+
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code -- for duplicates
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
+
+# UPDATE EACH RUN:load in the LONG data we generated from 00_DataImport code -- for protocol checks 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
+
+
+# UPDATE EACH RUN: set path to location where you want to save the query output below 
+path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
 #*****************************************************************************
-#*set directory and read data 
-#*****************************************************************************
-## Set working directory to site-specific folder -- main folder
-setwd(paste0("~/PRiSMAv2Data/", Site, "/", UploadDate, "/", sep = ""))
-
-## Load in wide data 
-load(paste0("~/PRiSMAv2Data/", Site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
-
-#*****************************************************************************
-#* check duplicated IDs, also check the rest vars' info
+#* check duplicated IDs 
+#* The following codes will extract and ID that is duplicated in the data based on visit date/visit type/MOMID, PREGID, INFANTID
 #*****************************************************************************
 #*Make empty dataframe 
+#* any maternal duplicate ids will be stored in the VarNamesDuplicate data frame
 VarNamesDuplicate <- as.data.frame(matrix(nrow = 1, ncol = 6))
 names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
 
 #*Make empty dataframe 
+#* any infant duplicate ids will be stored in the VarNamesDuplicate data frame
 VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
 names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
 
 #****************************************
-#* SCRNID --> 00 and 02
+#* SCRNID --> mnh00 and mnh02
 #****************************************
 if (exists("mnh00")==TRUE){
   
@@ -95,7 +97,7 @@ if (exists("mnh00")==TRUE){
   
 }
 #****************************************
-#* SCRNID --> 02
+#* SCRNID --> mnh02
 #****************************************
 if (exists("mnh02")==TRUE){
   
@@ -134,15 +136,13 @@ if (exists("mnh02")==TRUE){
 #****************************************
 #*SCRNID & US_VISIT & US_OHOSTDAT  --> 01
 #*
-#*WILL NEED TO UPDATE ONCE SITES INTEGRATE TYPE VISIT VARIABLE 
-#*THOUGHTS ON USING VISIT DATE OR VISIT TYPE FOR SCREENING ULTRASOUND 
 #****************************************
 if (exists("mnh01")==TRUE){
   
-  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT
+  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT & Visit date 
   dup_US <- function(form) {
     ID <- form %>% 
-      dplyr::select(SCRNID, TYPE_VISIT)
+      dplyr::select(SCRNID, TYPE_VISIT, US_OHOSTDAT)
     dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
       arrange(SCRNID, TYPE_VISIT) 
     dupID <-print(dup, n=nrow(dup), na.print=NULL)
@@ -153,8 +153,6 @@ if (exists("mnh01")==TRUE){
   
   # export key variables if duplicates exists 
  out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT, US_OHOSTDAT)
-  # out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT)
-  # out_us <- add_column(out_us,FORMCOMPLDAT_MNH01 =NA)
   
   # rename columns 
   names(out_us) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
@@ -168,7 +166,7 @@ if (exists("mnh01")==TRUE){
   } 
 }
 #****************************************
-#*#MOMID & PREGID --> 03
+#*#MOMID & PREGID --> mnh03
 #****************************************
 if (exists("mnh03")==TRUE){
   
@@ -524,8 +522,7 @@ if (exists("mnh10")==TRUE){
 }
 
 #****************************************
-#* MNH11 -- create new variable names for 
-#* duplicates for infants and merge later
+#* MNH11 (INFANT FORM) -- create new variable names for duplicates for infants and merge later
 #****************************************
 if (exists("mnh11")==TRUE){
   
@@ -612,7 +609,7 @@ if (exists("mnh12")==TRUE){
   }
 }
 #****************************************
-#* MNH13
+#* MNH13(INFANT FORM) 
 #****************************************
 if (exists("mnh13")==TRUE){
   
@@ -652,7 +649,7 @@ if (exists("mnh13")==TRUE){
   } 
 }
 #****************************************
-#* MNH14
+#* MNH14(INFANT FORM) 
 #****************************************
 if (exists("mnh14")==TRUE){
   
@@ -693,7 +690,7 @@ if (exists("mnh14")==TRUE){
   } 
 }
 #****************************************
-#* MNH15
+#* MNH15 (INFANT FORM) 
 #****************************************
 if (exists("mnh15")==TRUE){
   
@@ -914,7 +911,7 @@ if (exists("mnh19")==TRUE){
   }
 }
 #****************************************
-#* MNH20
+#* MNH20 (INFANT FORM) 
 #****************************************
 if (exists("mnh20")==TRUE){
   
@@ -1257,12 +1254,11 @@ VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
 #****************************************
 #* BIND ALL DATA FRAMES 
 #****************************************
-# 08/04 UPDATE: THERE ARE INSTANCES OF MISSING INFANTIDS IN INFANT FORMS -- ADD NEW ERROR TYPE HERE 
 # add infant id column to momid dataframe 
 names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
 VarNamesDuplicate <- add_column(VarNamesDuplicate, INFANTID = NA, .after = "PREGID")
 
-## update variable value column 
+## update variable value variable name column to represent if the duplicate is a momid or scrnid 
 VarNamesDuplicate <- VarNamesDuplicate %>% 
   mutate(`Variable Value` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , SCRNID, MOMID), 
          `Variable Name` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , "ScrnID", "MomID"),
@@ -1270,16 +1266,14 @@ VarNamesDuplicate <- VarNamesDuplicate %>%
          EditType = "Duplicate ID"
          )
 
-# fix random issues with VarNamesDuplicate_Inf visit type class 
-VarNamesDuplicate_Inf$VisitType = as.character(VarNamesDuplicate_Inf$VisitType)
-
-## update variable value column 
+## update variable value variable name column to represent the duplicate is an infant id 
 VarNamesDuplicate_Inf <- VarNamesDuplicate_Inf %>% 
   mutate(`Variable Value` = INFANTID, 
          `Variable Name` = "InfantID",
          FieldType = "Text", 
          EditType = ifelse(is.na(INFANTID),"InfantID missing from infant form", "Duplicate ID")
-  )
+  ) %>% 
+  mutate(VisitType = as.character(VarNamesDuplicate_Inf$VisitType))
 
 ## bind in duplicate infant ids
 VarNamesDuplicate <- bind_rows(VarNamesDuplicate, VarNamesDuplicate_Inf) %>% unique()
@@ -1311,21 +1305,16 @@ VarNamesDuplicate <- VarNamesDuplicate %>%
 duplicates_query <- VarNamesDuplicate
 
 #export
-save(duplicates_query, file = "queries/duplicates_query.rda")
+save(duplicates_query, file = paste0(path_to_save, "duplicates_query.rda"))
 
 #*****************************************************************************
-#* comparing mom id 
-#* This code will check that all moms who are enrolled had an enrollment form 
+#* Maternal Protocol check - do all enrolled participants have a MNH02 enrollment form 
 #*****************************************************************************
-## Load in long data  
-load(paste0("~/PRiSMAv2Data/", Site, "/", UploadDate,"/data/", UploadDate, "_long.Rdata", sep = "")) 
-
-
-## get MOMIDs in enrollment form 
+## extract MOMIDs in enrollment form 
 enroll_momid <- data_long %>% filter(form == "MNH02")
 enroll_momid_vec <- as.vector(unique(enroll_momid$MOMID))
 
-## get MOMIDs in all forms 
+## extract MOMIDs in all forms 
 all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01")
 
 ## subset all MOMIDs that have forms 03-25 but not enrollment 
@@ -1376,19 +1365,18 @@ MomidNotMatched_query <- MomidNotMatched_query %>%
   )
 
 #export Mom ID not matched query 
-save(MomidNotMatched_query, file = "queries/MomidNotMatched_query.rda")
+save(MomidNotMatched_query, file = paste0(path_to_save, "MomidNotMatched_query.rda"))
 
 }
 
 #*****************************************************************************
-#* comparing infant id 
-#* This code will check that all infants have a delivery form 
+#* Infant Protocol check - are all infants represented in a delivery form
 #*****************************************************************************
 ## Extract infant IDs in MNH09 
 deliv_infid <- data_long %>% filter(form == "MNH09")
 deliv_infid_vec <- as.vector(unique(deliv_infid$INFANTID))
 
-## get infant IDs in all infant forms 
+## extract infant IDs in all infant forms 
 infant_forms <- c("MNH11", "MNH13", "MNH14", "MNH15","MNH20", "MHNH24")
 all_infid <- data_long %>% filter(form %in% infant_forms)
 
@@ -1444,7 +1432,7 @@ InfidNotMatched_query <- InfidNotMatched_query %>%
   )
 
 
-#export Mom ID not matched query 
-save(InfidNotMatched_query, file = "queries/InfidNotMatched_query.rda")
+#export Infant ID not matched query 
+save(InfidNotMatched_query, file = paste0(path_to_save, "InfidNotMatched_query.rda"))
 
 }
