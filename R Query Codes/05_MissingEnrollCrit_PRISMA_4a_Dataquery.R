@@ -1,24 +1,15 @@
 #*****************************************************************************
 #*QUERY #5 -- CONFIRM ALL "ENROLLED" PARTICIPANTS MEET OUR ENROLLMENT ELIGIBILITY CRITERIA
+#* Written by: Stacie Loisate 
+#* Last updated: 06 September 2023
+
 #*Input: Wide data (all raw .csv files) & Long data
 #*Function: Confirm all enrolled particpants meet our enrollment criteria as in MNH02
 #*Output: .rda file with all MOMIDs that do not meet enrollment criteria 
 #*****************************************************************************
-#* Items to Update before running script 
-#* You can copy and paste "UPDATE EACH RUN" to find where to update 
-#* Last updated: 24 July 2023
-  ## updates to include type visit in the final output
-#* Previous updates: 30 May 2023
-# Moved query ID code from export script to this script
-
-#* 1. Update "UploadDate" 
-#* 2. Set "site" variable to the site you are running the query for
-
-#* Once the previous lines of code are updated, you can start to run the script 
 #*****************************************************************************
-
-# clear environment 
-rm(list = ls())
+#* Data setup 
+#*****************************************************************************
 
 # load packages 
 library(tidyverse)
@@ -29,25 +20,24 @@ library(dplyr)
 library(data.table)
 library(lubridate)
 
-## UPDATE EACH RUN ## 
-# 1. Update "UploadDate" (this should match the folder name in synapse)
-# 2. Set "site" variable to the site you are running the query for 
-UploadDate = "2023-07-21"
-site = "Ghana"
+# UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
+UploadDate = "2023-08-25"
+
+# UPDATE EACH RUN: Set "site" variable to the site you are running the query for 
+site = "Kenya"
+
+# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
+
+# UPDATE EACH RUN: load in the LONG data we generated from 00_DataImport code 
+load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
+
+## UPDATE EACH RUN: set path to location where you want to save the query output below 
+path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
 #*****************************************************************************
-#* load data
+#* Extract any  MOMIDs that do not meeting enrollment criteria (per MNH02)
 #*****************************************************************************
-## Set working directory to site-specific folder -- main folder
-setwd(paste0("~/PRiSMAv2Data/", site, "/", UploadDate, "/", sep = ""))
-
-## Load in long data 
-load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_long.Rdata", sep = "")) 
-
-## Load in wide data 
-load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
-#*****************************************************************************
-
 ## extract MOMIDs in all forms following MNH02. We will assume that any participant with these forms are considered "enrolled" by sites 
 all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01") %>% distinct(MOMID) %>% pull(MOMID)
 
@@ -102,6 +92,6 @@ if (dim(MomidNotEligible)[1] >= 1){
     mutate(QueryID = paste0(Form, "_", VisitDate, "_",MomID, "_",`Variable Name`, "_", `Variable Value`, "_", "08"))
   
   #export Mom ID missing enrollment criteria query 
-  save(MomidNotEligible_query, file = "queries/MomidNotEligible_query.rda")
+  save(MomidNotEligible_query, file = paste0(path_to_save, "MomidNotEligible_query.rda"))
   
 }
