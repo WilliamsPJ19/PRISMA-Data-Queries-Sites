@@ -116,12 +116,12 @@ mnh09_sub <- mnh09 %>% select(MOMID, PREGID,
          DELIV_DSSTDAT_INF4 = ymd(parse_date_time(DELIV_DSSTDAT_INF4, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
   ) %>% 
   # replace default value date with NA 
-  mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("07-07-1907"), NA), 
-         DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("07-07-1907"), NA),
-         DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("07-07-1907"), NA),
-         DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("07-07-1907"), NA)) %>% 
+  mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==dmy("07-07-1907"), NA), 
+         DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==dmy("07-07-1907"), NA),
+         DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==dmy("07-07-1907"), NA),
+         DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==dmy("07-07-1907"), NA)) %>% 
   # replace default value time with NA 
-  mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  # some sites reporting 07:07
+  mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  ## some sites reporting 07:07 
          DELIV_DSSTTIM_INF2 = replace(DELIV_DSSTTIM_INF2, DELIV_DSSTTIM_INF2=="77:77", NA),
          DELIV_DSSTTIM_INF3 = replace(DELIV_DSSTTIM_INF3, DELIV_DSSTTIM_INF3=="77:77", NA),
          DELIV_DSSTTIM_INF4 = replace(DELIV_DSSTTIM_INF4, DELIV_DSSTTIM_INF4=="77:77", NA)) %>% 
@@ -177,8 +177,7 @@ maternal_all_anc <- maternal_all_anc %>%
   mutate(EXPECTED_TYPE_VISIT = ifelse(GA_AT_VISIT_DAYS >= 126 & GA_AT_VISIT_DAYS <= 181 & GA_US_DAYS <= 125, 2, ## only participants who are <= 17wks at enrollment will have this visit 
                                       ifelse(GA_AT_VISIT_DAYS <=139, 1, 
                                              ifelse(GA_AT_VISIT_DAYS >= 182 & GA_AT_VISIT_DAYS <= 216, 3, 
-                                                    ifelse(GA_AT_VISIT_DAYS >= 217 & GA_AT_VISIT_DAYS <= 237, 4, ## MIGHT BE UPDATING THE 237 NUMBER 
-                                                           ## Since all visit types are assigned based on the GA at the time of assessment, we don't need to worry about 4 vs 5. 
+                                                    ifelse(GA_AT_VISIT_DAYS >= 217 & GA_AT_VISIT_DAYS <= 237, 4, 
                                                            # if ANC32 is missed, it is conducted at ANC36 visit
                                                            ifelse(GA_AT_VISIT_DAYS >= 238 & GA_AT_VISIT_DAYS <= 300, 5, 88))))))
 
@@ -340,15 +339,11 @@ mnh09_sub <- mnh09 %>%
          DELIV_DSSTDAT_INF4 =  ymd(parse_date_time(DELIV_DSSTDAT_INF4, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
          
   ) %>% 
-  mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("2007-07-07"), NA)) %>%
-  # 
-  # mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("1907-07-07"), NA),
-  #        DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("1907-07-07"), NA),
-  #        DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("1907-07-07"), NA),
-  #        DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("1907-07-07"), NA)) %>%
+
+  mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("1907-07-07"), NA),
+         DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("1907-07-07"), NA),
+         DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("1907-07-07"), NA),
+         DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("1907-07-07"), NA)) %>%
   
   # replace default value time with NA 
   mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),
@@ -481,8 +476,6 @@ names(infant_all_pnc_out_full) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD
                                    "AGE_AT_VISIT_DAYS", "AGE_AT_VISIT_WKS",
                                    "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT", "Error")
 
-
-## PAK HAS INFANTIDS THAT ARE REPORTING PNC VISITS BUT ARE MISSING DELIVERY INFORMATION!!!!! 
 #*****************************************************************************
 ## Format extra tab with more detail
 #*****************************************************************************
@@ -533,4 +526,3 @@ if (dim(InfantVisitType_query)[1] > 1){
   save(InfantVisitType_query, file = paste0(path_to_save, "InfantVisitType_query.rda"))
   
 }
-
