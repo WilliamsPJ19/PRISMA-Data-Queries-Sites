@@ -60,7 +60,7 @@ report <- rbindlist(lapply(mget(ls(pattern = "*query$")), function(x) {
 
 
 #*****************************************************************************
-#* Generating summary tables -- High Frequency Tab
+#* Generating High Frequency Tab
 # here we can remove any variables that pulled a lot of queries 
 # we can note them but then remove from the query report tab (still include them in the last Form_Varname_Edit tab)
 # Examples here might include a specific lab that is pulling 150 queries - this might be a range or unit issue - just bring up in email
@@ -180,7 +180,8 @@ table_freq_FmNmEd <- report %>%
   group_by(Form_Edit_Type) %>%
   count(name ="Frequency") %>%
   rename("Form and Edit Type" = "Form_Edit_Type") %>%
-  filter(is.na(`Form and Edit Type`))
+  filter(!(is.na(`Form and Edit Type`)))
+
 
 #*****************************************************************************
 #* Extracting previous week's queries -- to do still 
