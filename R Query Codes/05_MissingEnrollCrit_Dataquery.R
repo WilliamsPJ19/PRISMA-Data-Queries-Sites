@@ -61,7 +61,7 @@ momid_enroll_forms = momid_enroll_forms %>% select(SCRNID, MOMID, PREGID, SCRN_O
          TYPE_VISIT = NA)
 
 ## reorder columns 
-momid_enroll_forms <- momid_enroll_forms[, c("SCRNID", "MOMID", "PREGID", "InfantID","VisitType", "SCRN_OBSSTDAT", "Form")] 
+momid_enroll_forms <- momid_enroll_forms[, c("SCRNID", "MOMID", "PREGID", "InfantID","TYPE_VISIT", "SCRN_OBSSTDAT", "Form")] 
 
 ## update naming
 names(momid_enroll_forms) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form")
