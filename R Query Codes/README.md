@@ -1,6 +1,6 @@
 # PRiSMA Data Cleaning Codes
 This repository contains all PRiSMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 06 September 2023*
+#### :pushpin: *Last updated on 20 October 2023*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
