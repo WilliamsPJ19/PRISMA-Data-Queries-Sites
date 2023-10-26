@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #6 -- Generate Query Report 
 #* Written by: Stacie Loisate & Xiaoyan Hu & Precious Williams
-#* Last updated: 06 September  2023
+#* Last updated: 20 October  2023
 
 #*Input: all .rds files 
 #*Function: merge all queries together and assign query ID 

@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 06 September 2023
+#* Last updated: 20 October  2023
 
 #*Input: Long data 
 #*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 

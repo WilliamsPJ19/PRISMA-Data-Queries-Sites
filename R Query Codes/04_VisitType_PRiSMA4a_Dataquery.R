@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #4 -- CHECK THAT VISIT TYPE AND GA AND/OR PNC DAYS MATCH WITH WHAT IS REPORTED 
 #* Written by: Stacie Loisate 
-#* Last updated: 06 September 2023
+#* Last updated: 20 October  2023
 
 #*Input: Long data 
 #*Function: check for visit types that do not match 

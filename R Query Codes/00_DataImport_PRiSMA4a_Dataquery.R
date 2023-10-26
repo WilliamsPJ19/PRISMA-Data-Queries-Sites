@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #00 -- Import all raw .csv files from each upload 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 25 October 2023
+#* Last updated: 20 October  2023
 
 
 #*Input: Raw Data 

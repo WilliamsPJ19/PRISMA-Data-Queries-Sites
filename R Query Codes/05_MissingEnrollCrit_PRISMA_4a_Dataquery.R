@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #5 -- CONFIRM ALL "ENROLLED" PARTICIPANTS MEET OUR ENROLLMENT ELIGIBILITY CRITERIA
 #* Written by: Stacie Loisate 
-#* Last updated: 06 September 2023
+#* Last updated: 20 October  2023
 
 #*Input: Wide data (all raw .csv files) & Long data
 #*Function: Confirm all enrolled particpants meet our enrollment criteria as in MNH02
