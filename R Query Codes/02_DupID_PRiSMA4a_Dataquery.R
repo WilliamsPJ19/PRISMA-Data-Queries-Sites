@@ -59,8 +59,9 @@ names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate"
 VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
 names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
 
+
 #****************************************
-#* SCRNID --> mnh00 and mnh02
+#* SCRNID --> 00 and 02
 #****************************************
 if (exists("mnh00")==TRUE){
   
@@ -97,7 +98,7 @@ if (exists("mnh00")==TRUE){
   
 }
 #****************************************
-#* SCRNID --> mnh02
+#* SCRNID --> 02
 #****************************************
 if (exists("mnh02")==TRUE){
   
@@ -136,13 +137,15 @@ if (exists("mnh02")==TRUE){
 #****************************************
 #*SCRNID & US_VISIT & US_OHOSTDAT  --> 01
 #*
+#*WILL NEED TO UPDATE ONCE SITES INTEGRATE TYPE VISIT VARIABLE 
+#*THOUGHTS ON USING VISIT DATE OR VISIT TYPE FOR SCREENING ULTRASOUND 
 #****************************************
 if (exists("mnh01")==TRUE){
   
-  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT & Visit date 
+  #check US_OHOSTDAT if duplicates with SCRNID & US_VISIT
   dup_US <- function(form) {
     ID <- form %>% 
-      dplyr::select(SCRNID, TYPE_VISIT, US_OHOSTDAT)
+      dplyr::select(SCRNID, TYPE_VISIT)
     dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
       arrange(SCRNID, TYPE_VISIT) 
     dupID <-print(dup, n=nrow(dup), na.print=NULL)
@@ -152,7 +155,9 @@ if (exists("mnh01")==TRUE){
   out_us <- dup_US(mnh01)
   
   # export key variables if duplicates exists 
- out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT, US_OHOSTDAT)
+  out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT, US_OHOSTDAT)
+  # out_us <- out_us %>% select(SCRNID,MOMID, PREGID, TYPE_VISIT)
+  # out_us <- add_column(out_us,FORMCOMPLDAT_MNH01 =NA)
   
   # rename columns 
   names(out_us) = c("SCRNID","MOMID", "PREGID", "VisitType", "VisitDate")
@@ -166,7 +171,7 @@ if (exists("mnh01")==TRUE){
   } 
 }
 #****************************************
-#*#MOMID & PREGID --> mnh03
+#*#MOMID & PREGID --> 03
 #****************************************
 if (exists("mnh03")==TRUE){
   
@@ -295,7 +300,7 @@ if (exists("mnh05")==TRUE){
   id_visit_dup_m05 <- add_column(id_visit_dup_m05,Form = "MNH05")
   
   id_visit_dup_m05 <- id_visit_dup_m05 %>% unique() ## only need to include 1 instance of the duplicate
-
+  
   
   #*bind with other forms
   if (nrow(id_visit_dup_m05 >1)){
@@ -522,7 +527,8 @@ if (exists("mnh10")==TRUE){
 }
 
 #****************************************
-#* MNH11 (INFANT FORM) -- create new variable names for duplicates for infants and merge later
+#* MNH11 -- create new variable names for 
+#* duplicates for infants and merge later
 #****************************************
 if (exists("mnh11")==TRUE){
   
@@ -609,7 +615,7 @@ if (exists("mnh12")==TRUE){
   }
 }
 #****************************************
-#* MNH13(INFANT FORM) 
+#* MNH13
 #****************************************
 if (exists("mnh13")==TRUE){
   
@@ -649,7 +655,7 @@ if (exists("mnh13")==TRUE){
   } 
 }
 #****************************************
-#* MNH14(INFANT FORM) 
+#* MNH14
 #****************************************
 if (exists("mnh14")==TRUE){
   
@@ -690,7 +696,7 @@ if (exists("mnh14")==TRUE){
   } 
 }
 #****************************************
-#* MNH15 (INFANT FORM) 
+#* MNH15
 #****************************************
 if (exists("mnh15")==TRUE){
   
@@ -911,7 +917,7 @@ if (exists("mnh19")==TRUE){
   }
 }
 #****************************************
-#* MNH20 (INFANT FORM) 
+#* MNH20
 #****************************************
 if (exists("mnh20")==TRUE){
   
@@ -1254,26 +1260,29 @@ VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
 #****************************************
 #* BIND ALL DATA FRAMES 
 #****************************************
+# 08/04 UPDATE: THERE ARE INSTANCES OF MISSING INFANTIDS IN INFANT FORMS -- ADD NEW ERROR TYPE HERE 
 # add infant id column to momid dataframe 
 names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
 VarNamesDuplicate <- add_column(VarNamesDuplicate, INFANTID = NA, .after = "PREGID")
 
-## update variable value variable name column to represent if the duplicate is a momid or scrnid 
+## update variable value column 
 VarNamesDuplicate <- VarNamesDuplicate %>% 
   mutate(`Variable Value` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , SCRNID, MOMID), 
          `Variable Name` = ifelse((Form == "MNH01" & VisitType == 1) | (Form == "MNH00") , "ScrnID", "MomID"),
          FieldType = "Text", 
          EditType = "Duplicate ID"
-         )
+  )
 
-## update variable value variable name column to represent the duplicate is an infant id 
+# fix random issues with VarNamesDuplicate_Inf visit type class 
+VarNamesDuplicate_Inf$VisitType = as.character(VarNamesDuplicate_Inf$VisitType)
+
+## update variable value column 
 VarNamesDuplicate_Inf <- VarNamesDuplicate_Inf %>% 
   mutate(`Variable Value` = INFANTID, 
          `Variable Name` = "InfantID",
          FieldType = "Text", 
          EditType = ifelse(is.na(INFANTID),"InfantID missing from infant form", "Duplicate ID")
-  ) %>% 
-  mutate(VisitType = as.character(VarNamesDuplicate_Inf$VisitType))
+  )
 
 ## bind in duplicate infant ids
 VarNamesDuplicate <- bind_rows(VarNamesDuplicate, VarNamesDuplicate_Inf) %>% unique()
@@ -1300,21 +1309,27 @@ VarNamesDuplicate$Form_Edit_Type <- paste(VarNamesDuplicate$Form,"_",VarNamesDup
 ## assign queryid -- edit type id for duplicate IDs is 01 
 VarNamesDuplicate <- VarNamesDuplicate %>% 
   mutate(QueryID = paste0(Form, "_", VisitDate, "_",`Variable Name`, "_", `Variable Value`, "_", "01")
-         )
+  )
 
 duplicates_query <- VarNamesDuplicate
 
 #export
-save(duplicates_query, file = paste0(path_to_save, "duplicates_query.rda"))
+save(duplicates_query, file = paste0(maindir,"/queries/duplicates_query"))
+
 
 #*****************************************************************************
-#* Maternal Protocol check - do all enrolled participants have a MNH02 enrollment form 
+#* comparing mom id 
+#* This code will check that all moms who are enrolled had an enrollment form 
 #*****************************************************************************
-## extract MOMIDs in enrollment form 
+## Load in long data  
+load(paste0("~/PRiSMAv2Data/", Site, "/", UploadDate,"/data/", UploadDate, "_long.Rdata", sep = "")) 
+
+
+## get MOMIDs in enrollment form 
 enroll_momid <- data_long %>% filter(form == "MNH02")
 enroll_momid_vec <- as.vector(unique(enroll_momid$MOMID))
 
-## extract MOMIDs in all forms 
+## get MOMIDs in all forms 
 all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01")
 
 ## subset all MOMIDs that have forms 03-25 but not enrollment 
@@ -1337,46 +1352,47 @@ MomidNotMatched <- add_column(MomidNotMatched, VisitType = NA , .after = "Infant
 
 if (dim(MomidNotMatched)[1] >= 1){
   
-## add additional columns 
-MomidNotMatched_query = cbind(QueryID = NA, 
-                              UploadDate = UploadDate, 
-                              #MomID = "NA", PregID = "NA",
-                              VisitDate = "NA", 
-                              MomidNotMatched, 
-                              Form = "NA",
-                              `Variable Name` = "NA",
-                              `Variable Value` = "NA",
-                              FieldType = "Text", 
-                              EditType = "MomID Missing Enrollment Form", 
-                              DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-
-
-# combine form/edit type var 
-MomidNotMatched_query <- add_column(MomidNotMatched_query,Form_Edit_Type = paste(MomidNotMatched_query$EditType))
-
-# assign momid to the variable value column 
-MomidNotMatched_query <- MomidNotMatched_query %>% 
-  mutate(`Variable Value` = MomID, 
-         `Variable Name` = "MomID")
-
-## assign queryid -- edit type id missing enrollment form is 04
-MomidNotMatched_query <- MomidNotMatched_query %>% 
-  mutate(QueryID = paste0("MissingMNH02", "_", `Variable Name`, "_", `Variable Value`, "_", "04")
-  )
-
-#export Mom ID not matched query 
-save(MomidNotMatched_query, file = paste0(path_to_save, "MomidNotMatched_query.rda"))
-
+  ## add additional columns 
+  MomidNotMatched_query = cbind(QueryID = NA, 
+                                UploadDate = UploadDate, 
+                                #MomID = "NA", PregID = "NA",
+                                VisitDate = "NA", 
+                                MomidNotMatched, 
+                                Form = "NA",
+                                `Variable Name` = "NA",
+                                `Variable Value` = "NA",
+                                FieldType = "Text", 
+                                EditType = "MomID Missing Enrollment Form", 
+                                DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  
+  
+  # combine form/edit type var 
+  MomidNotMatched_query <- add_column(MomidNotMatched_query,Form_Edit_Type = paste(MomidNotMatched_query$EditType))
+  
+  # assign momid to the variable value column 
+  MomidNotMatched_query <- MomidNotMatched_query %>% 
+    mutate(`Variable Value` = MomID, 
+           `Variable Name` = "MomID")
+  
+  ## assign queryid -- edit type id missing enrollment form is 04
+  MomidNotMatched_query <- MomidNotMatched_query %>% 
+    mutate(QueryID = paste0("MissingMNH02", "_", `Variable Name`, "_", `Variable Value`, "_", "04")
+    )
+  
+  #export Mom ID not matched query 
+  save(MomidNotMatched_query, file = paste0(maindir,"/queries/MomidNotMatched_query.rda"))
+  
 }
 
 #*****************************************************************************
-#* Infant Protocol check - are all infants represented in a delivery form
+#* comparing infant id 
+#* This code will check that all infants have a delivery form 
 #*****************************************************************************
 ## Extract infant IDs in MNH09 
 deliv_infid <- data_long %>% filter(form == "MNH09")
 deliv_infid_vec <- as.vector(unique(deliv_infid$INFANTID))
 
-## extract infant IDs in all infant forms 
+## get infant IDs in all infant forms 
 infant_forms <- c("MNH11", "MNH13", "MNH14", "MNH15","MNH20", "MHNH24")
 all_infid <- data_long %>% filter(form %in% infant_forms)
 
@@ -1405,34 +1421,33 @@ InfidNotMatched <- add_column(InfidNotMatched, VisitType = NA , .after = "Infant
 
 if (dim(InfidNotMatched)[1] >= 1){
   
-## add additional columns 
-InfidNotMatched = cbind(QueryID = NA, 
-                        UploadDate = UploadDate, 
-                        #MomID = "NA", PregID = "NA",
-                        VisitDate = "NA", 
-                        InfidNotMatched, 
-                        Form = "NA",
-                        `Variable Name` = "NA",
-                        `Variable Value` = "NA",
-                        FieldType = "Text", 
-                        EditType = "InfantID Missing Delivery Form", 
-                        DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-
-# combine form/edit type var 
-InfidNotMatched_query <- add_column(InfidNotMatched,Form_Edit_Type = paste(InfidNotMatched$EditType))
-
-# reassing momid to the variable value column 
-InfidNotMatched_query <- InfidNotMatched_query %>% 
-  mutate(`Variable Value` = InfantID, 
-         `Variable Name` = "InfantID")
-
-## assign queryid -- edit type id for infant missing delivery form is 07
-InfidNotMatched_query <- InfidNotMatched_query %>% 
-  mutate(QueryID = paste0("MissingMNH09", "_",`Variable Name`, "_", `Variable Value`, "_", "07")
-  )
-
-
-#export Infant ID not matched query 
-save(InfidNotMatched_query, file = paste0(path_to_save, "InfidNotMatched_query.rda"))
-
+  ## add additional columns 
+  InfidNotMatched = cbind(QueryID = NA, 
+                          UploadDate = UploadDate, 
+                          #MomID = "NA", PregID = "NA",
+                          VisitDate = "NA", 
+                          InfidNotMatched, 
+                          Form = "NA",
+                          `Variable Name` = "NA",
+                          `Variable Value` = "NA",
+                          FieldType = "Text", 
+                          EditType = "InfantID Missing Delivery Form", 
+                          DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+  
+  # combine form/edit type var 
+  InfidNotMatched_query <- add_column(InfidNotMatched,Form_Edit_Type = paste(InfidNotMatched$EditType))
+  
+  # reassing momid to the variable value column 
+  InfidNotMatched_query <- InfidNotMatched_query %>% 
+    mutate(`Variable Value` = InfantID, 
+           `Variable Name` = "InfantID")
+  
+  ## assign queryid -- edit type id for infant missing delivery form is 07
+  InfidNotMatched_query <- InfidNotMatched_query %>% 
+    mutate(QueryID = paste0("MissingMNH09", "_",`Variable Name`, "_", `Variable Value`, "_", "07")
+    )
+  
+  
+  #export Inf ID not matched query 
+  save(InfidNotMatched_query, file = paste0(maindir,"/queries/InfidNotMatched_query.rda"))
 }

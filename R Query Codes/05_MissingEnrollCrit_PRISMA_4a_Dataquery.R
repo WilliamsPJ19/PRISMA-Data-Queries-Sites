@@ -61,7 +61,7 @@ momid_enroll_forms = momid_enroll_forms %>% select(SCRNID, MOMID, PREGID, SCRN_O
          TYPE_VISIT = NA)
 
 ## reorder columns 
-momid_enroll_forms <- momid_enroll_forms[, c("SCRNID", "MOMID", "PREGID", "InfantID","VisitType", "SCRN_OBSSTDAT", "Form")] 
+momid_enroll_forms <- momid_enroll_forms[, c("SCRNID", "MOMID", "PREGID", "InfantID","TYPE_VISIT", "SCRN_OBSSTDAT", "Form")] 
 
 ## update naming
 names(momid_enroll_forms) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form")
@@ -91,7 +91,7 @@ if (dim(MomidNotEligible)[1] >= 1){
   MomidNotEligible_query <- MomidNotEligible_query %>% 
     mutate(QueryID = paste0(Form, "_", VisitDate, "_",MomID, "_",`Variable Name`, "_", `Variable Value`, "_", "08"))
   
-  #export Mom ID missing enrollment criteria query 
-  save(MomidNotEligible_query, file = paste0(path_to_save, "MomidNotEligible_query.rda"))
+  ## export 
+  save(MomidNotEligible_query, file = paste0(maindir,"/queries/MomidNotEligible_query.rda"))
   
 }

@@ -12,7 +12,7 @@
 #*****************************************************************************
 
 # clear environment 
-rm(list = ls())
+#rm(list = ls())
 
 # load packages 
 library(tidyverse)
@@ -180,7 +180,7 @@ table_freq_FmNmEd <- report %>%
   group_by(Form_Edit_Type) %>%
   count(name ="Frequency") %>%
   rename("Form and Edit Type" = "Form_Edit_Type") %>%
-  filter(is.na(`Form and Edit Type`))
+  filter(!(is.na(`Form and Edit Type`)))
 
 #*****************************************************************************
 #* Extracting previous week's queries -- to do still 
