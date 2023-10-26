@@ -1,6 +1,6 @@
 # PRiSMA Data Cleaning Codes
 This repository contains all PRiSMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 13 March 2023*
+#### :pushpin: *Last updated on 06 September 2023*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
@@ -64,4 +64,10 @@ This repository contains all PRiSMA codes that will be used internally and by si
    - output:
      - Excel sheet with a full query report 
    - function: 
-     - Merge all queries together and assign query ID 
+     - Merge all queries together and assign query ID
+    
+**Documents in this repository:** 
+   - Current data dictionary (v2.3) (filename: PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx)
+   - Excel file with fetal biometry ranges. This is required for the out of range codes (filename: fetal_biometry_range.xlsx)
+   - PRISMA Query Report Template (filename: PRISMA-Query-Template-07Sept2023.xlsx)
+   - PRISMA Non-Query Template (filename: PRISMA-Non-Queries-template-07Sept2023.xlsx)

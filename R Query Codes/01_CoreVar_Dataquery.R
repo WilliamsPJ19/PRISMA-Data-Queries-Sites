@@ -46,7 +46,7 @@ load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
 ## call in the data dictionary 
-variable_names <- read_excel("~/PRiSMAv2Data/Queries/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
+variable_names <- read_excel("~/PRiSMAv2Data/PRISMA-Data-Queries-GW/R/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
 variable_names <- variable_names %>% select(Form, `Variable Name`)
 names(variable_names) = c("Form", "VarName")
 variable_names$VarName = toupper(variable_names$VarName)
@@ -1196,5 +1196,4 @@ if (dim(VarNamesExtra)[1] > 1){
 missing_query <- rbind(VarNamesMissing, VarNamesExtra)
 
 ## export variable checking query 
-save(missing_query, file = paste0(path_to_save, "missing_query.rda"))
-
+save(missing_query, file = paste0(maindir, "/queries/missing_query.rda"))

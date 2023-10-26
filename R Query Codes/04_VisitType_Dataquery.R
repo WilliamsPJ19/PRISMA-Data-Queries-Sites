@@ -32,6 +32,7 @@ load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = 
 ## UPDATE EACH RUN: set path to location where you want to save the query output below 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
+
 #*****************************************************************************
 #* not all sites are reporting momid and pregid in mnh01 - this will cause some issues in this workflow 
 #* solution: merge in momid and pregid from MNH02 into MNH01 based on scrnid
@@ -178,6 +179,15 @@ mnh12_sub <- mnh12 %>% select(MOMID, PREGID, TYPE_VISIT, VISIT_OBSSTDAT) %>%
   #mutate(VISITDATE = ymd(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH12")
 
+## if zambia has "." in the data use the following code: 
+# df_to_update <- df_to_update %>% 
+#   mutate(var_with_"." = as.numeric(replace(var_with_"." , var_with_"." == ".", NA)))  
+
+
+## example:
+mnh12_sub <- mnh12_sub %>% 
+  mutate(TYPE_VISIT = as.numeric(replace(TYPE_VISIT, TYPE_VISIT==".", NA)))
+
 #*****************************************************************************
 ## Rbind all the data frames together (except delivery and enrollment ultrasound)
 #*****************************************************************************
@@ -241,6 +251,10 @@ names(maternal_all_anc_out_full) = c("FORM", "MOMID", "PREGID","INFANTID", "PERI
                                      "AGE_AT_ENROLLMENT",  "AGE_AT_VISIT_DAYS", "AGE_AT_VISIT_WKS",
                                      "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT", "Error")
 
+## dupliates in mnh01 for visit type = 1 
+## GA at us >= 18 weeks should not have visit type == 2 
+## default value visit date
+
 #*****************************************************************************
 ## PNC visits 
 #*****************************************************************************
@@ -257,6 +271,7 @@ out_dup_ids <- maternal_all_pnc %>% filter(!(MOMID %in% out_dup_ids))
 
 ## calculate days PNC at each vist for PNC visits - ONLY USING DAYS -- USE THIS ONE
 maternal_all_pnc <- maternal_all_pnc %>% 
+  ## need to confirm if this needs to have a +1 to account for day 1 of life 
   mutate(DAYS_PNC = as.numeric(VISITDATE - DOB)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   ## convert to weeks
   mutate(WKS_PNC = floor(DAYS_PNC/7)) %>% 

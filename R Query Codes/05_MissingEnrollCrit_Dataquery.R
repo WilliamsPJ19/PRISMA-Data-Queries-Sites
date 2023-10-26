@@ -38,6 +38,7 @@ path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 #*****************************************************************************
 #* Extract any  MOMIDs that do not meeting enrollment criteria (per MNH02)
 #*****************************************************************************
+
 ## extract MOMIDs in all forms following MNH02. We will assume that any participant with these forms are considered "enrolled" by sites 
 all_momid <- data_long %>% filter(form != "MNH02" & form != "MNH00" & form != "MNH01") %>% distinct(MOMID) %>% pull(MOMID)
 

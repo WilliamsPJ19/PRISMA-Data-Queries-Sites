@@ -35,7 +35,7 @@ load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = 
 ## UPDATE EACH RUN: set path to location where you want to save the query output below 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
-#*import data dictionary 
+#*import data dictionary from github folder
 varNames_sheet <- read_excel("~/PRiSMAv2Data/PRISMA-Data-Queries-GW/R/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
 varNames_sheet <- varNames_sheet %>% dplyr::select(Form, `Variable Name`, `Response Options`, `Query Category`,`Value`, `Field Type (Date, Time, Number, Text)`, `Minimum Value`, `Maximum Value`)
 varNames_sheet$`Variable Name` = toupper(varNames_sheet$`Variable Name`)

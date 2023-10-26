@@ -60,6 +60,7 @@ VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
 names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
 
 
+
 #****************************************
 #* SCRNID --> 00 and 02
 #****************************************
