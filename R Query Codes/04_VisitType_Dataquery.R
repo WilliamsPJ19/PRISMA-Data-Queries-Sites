@@ -59,7 +59,7 @@ if (site=="India-CMC"){
            GA_US_DAYS_FTS4 =  ifelse(CAL_GA_WKS_AGE_FTS4!= -7 & CAL_GA_DAYS_AGE_FTS4 != -7,  (CAL_GA_WKS_AGE_FTS4 * 7 + CAL_GA_DAYS_AGE_FTS4), NA)) %>% 
     mutate(GA_US_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE)) %>% 
     ## convert to weeks 
-    mutate(GA_US_WKS = floor(GA_US_DAYS/7)) %>% 
+    mutate(GA_US_WKS = GA_US_DAYS %/% 7) %>% 
     mutate(US_OHOSTDAT = ymd(parse_date_time(US_OHOSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
     ## remove any unscheduled visit types
     filter(TYPE_VISIT != 13) %>% 
@@ -82,7 +82,7 @@ if (site=="India-CMC"){
            GA_US_DAYS_FTS4 =  ifelse(US_GA_WKS_AGE_FTS4!= -7 & US_GA_DAYS_AGE_FTS4 != -7,  (US_GA_WKS_AGE_FTS4 * 7 + US_GA_DAYS_AGE_FTS4), NA)) %>% 
     mutate(GA_US_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE)) %>% 
     ## convert to weeks 
-    mutate(GA_US_WKS = floor(GA_US_DAYS/7)) %>% 
+    mutate(GA_US_WKS = GA_US_DAYS %/% 7) %>% 
     mutate(US_OHOSTDAT = ymd(parse_date_time(US_OHOSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
     ## remove any unscheduled visit types
     filter(TYPE_VISIT != 13) %>% 
@@ -216,7 +216,7 @@ maternal_all_anc <- maternal_all_anc %>%
   mutate(DIFF_DAYS = as.numeric(VISITDATE - US_OHOSTDAT)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   mutate(GA_AT_VISIT_DAYS = GA_US_DAYS + DIFF_DAYS) %>%  ## add the number of days difference to GA at ultrasound to get the estimated GA at visit
   ## convert to weeks
-  mutate(GA_AT_VISIT_WKS = floor(GA_AT_VISIT_DAYS/7)) %>% 
+  mutate(GA_AT_VISIT_WKS = GA_AT_VISIT_DAYS %/% 7) %>% 
   ## double check overlapping anc 32 and anc 36 late windows 
   arrange(-desc(TYPE_VISIT)) %>% 
   #mutate(PREV_VISIT_TYPE = dplyr::lag(TYPE_VISIT, n = 1)) %>% 
@@ -274,7 +274,7 @@ maternal_all_pnc <- maternal_all_pnc %>%
   ## need to confirm if this needs to have a +1 to account for day 1 of life 
   mutate(DAYS_PNC = as.numeric(VISITDATE - DOB)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   ## convert to weeks
-  mutate(WKS_PNC = floor(DAYS_PNC/7)) %>% 
+  mutate(WKS_PNC = DAYS_PNC %/% 7) %>% 
   mutate(EXPECTED_TYPE_VISIT = ifelse(DAYS_PNC >= 3 & DAYS_PNC <= 5, 7, 
                                       ifelse(DAYS_PNC >= 7 & DAYS_PNC <= 14, 8, 
                                              ifelse(DAYS_PNC >= 28 & DAYS_PNC <= 35, 9, 
@@ -509,7 +509,7 @@ infant_all_pnc <- infant_all_pnc %>%
   ## need to confirm if this needs to have a +1 to account for day 1 of life 
   mutate(DAYS_PNC = as.numeric(VISITDATE - DOB)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   ## convert to weeks
-  mutate(WKS_PNC = floor(DAYS_PNC/7)) %>% 
+  mutate(WKS_PNC = DAYS_PNC %/% 7) %>% 
   mutate(EXPECTED_TYPE_VISIT = ifelse(DAYS_PNC >= 3 & DAYS_PNC <= 5, 7, 
                                       ifelse(DAYS_PNC >= 7 & DAYS_PNC <= 14, 8, 
                                              ifelse(DAYS_PNC >= 28 & DAYS_PNC <= 35, 9, 
