@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #4 -- CHECK THAT VISIT TYPE AND GA AND/OR PNC DAYS MATCH WITH WHAT IS REPORTED 
 #* Written by: Stacie Loisate 
-#* Last updated: 20 October  2023
+#* Last updated: 21 November  2023
 
 #*Input: Long data 
 #*Function: check for visit types that do not match 
@@ -45,7 +45,7 @@ mnh01_newids <- mnh01 %>% select(-MOMID, -PREGID) %>% ## remove momid and pregid
 #*Export key variables from each dataframe: MOMID, PREGID, VISIT DATE 
 #* for MNH01 and 09: export GA and delivery information 
 #*****************************************************************************
-if (site=="India-CMC"){
+if (Site=="India-CMC"){
   
   mnh01_raw <- mnh01_newids %>% select(MOMID, PREGID, US_OHOSTDAT, TYPE_VISIT, contains("CAL_GA_WKS_AGE_"), contains("CAL_GA_DAYS_AGE_"))
   
@@ -104,31 +104,26 @@ mnh01_sub <- mnh01_sub %>% filter(TYPE_VISIT != 1) %>% rename("VISITDATE" = "US_
 mnh04_sub <- mnh04 %>% select(MOMID, PREGID, TYPE_VISIT, ANC_OBSSTDAT) %>% 
   mutate(ANC_OBSSTDAT = ymd(parse_date_time(ANC_OBSSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "ANC_OBSSTDAT") %>% 
-  #mutate(VISITDATE = dmy(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH04")
 
 mnh05_sub <- mnh05 %>% select(MOMID, PREGID, TYPE_VISIT, ANT_PEDAT) %>%
   mutate(ANT_PEDAT = ymd(parse_date_time(ANT_PEDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "ANT_PEDAT") %>%
-  #mutate(VISITDATE = dmy(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH05")
 
 mnh06_sub <- mnh06 %>% select(MOMID, PREGID, TYPE_VISIT, DIAG_VSDAT) %>% 
   mutate(DIAG_VSDAT = ymd(parse_date_time(DIAG_VSDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "DIAG_VSDAT") %>% 
-  #mutate(VISITDATE = dmy(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH06")
 
 mnh07_sub <- mnh07 %>% select(MOMID, PREGID, TYPE_VISIT, MAT_SPEC_COLLECT_DAT) %>%
   mutate(MAT_SPEC_COLLECT_DAT = ymd(parse_date_time(MAT_SPEC_COLLECT_DAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "MAT_SPEC_COLLECT_DAT") %>% 
-  #mutate(VISITDATE = dmy(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH07")
 
 mnh08_sub <- mnh08 %>% select(MOMID, PREGID, TYPE_VISIT, LBSTDAT) %>% 
   mutate(LBSTDAT = ymd(parse_date_time(LBSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "LBSTDAT") %>% 
-  #mutate(VISITDATE = dmy(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH08")
 
 ##MNH09, need to extract the minimum delivery datetime in the event of a multiples pregnancy
@@ -147,11 +142,6 @@ mnh09_sub <- mnh09 %>% select(MOMID, PREGID,
          DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("1907-07-07"), NA),
          DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("1907-07-07"), NA),
          DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("1907-07-07"), NA)) %>%
-  # mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("2007-07-07"), NA),
-  #        DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("2007-07-07"), NA),
-  #        DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("2007-07-07"), NA),
-  #        DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("2007-07-07"), NA)) %>%
-  
   # replace default value time with NA 
   mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  ## should be 77:77, but pak is using 07:07
          DELIV_DSSTTIM_INF2 = replace(DELIV_DSSTTIM_INF2, DELIV_DSSTTIM_INF2=="77:77", NA),
@@ -176,27 +166,13 @@ mnh09_sub <- mnh09 %>% select(MOMID, PREGID,
 mnh12_sub <- mnh12 %>% select(MOMID, PREGID, TYPE_VISIT, VISIT_OBSSTDAT) %>% 
   mutate(VISIT_OBSSTDAT = ymd(parse_date_time(VISIT_OBSSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "VISIT_OBSSTDAT") %>% 
-  #mutate(VISITDATE = ymd(format(VISITDATE,"%d-%m-%Y"))) %>% 
   mutate(FORM = "MNH12")
-
-## if zambia has "." in the data use the following code: 
-# df_to_update <- df_to_update %>% 
-#   mutate(var_with_"." = as.numeric(replace(var_with_"." , var_with_"." == ".", NA)))  
-
-
-## example:
-mnh12_sub <- mnh12_sub %>% 
-  mutate(TYPE_VISIT = as.numeric(replace(TYPE_VISIT, TYPE_VISIT==".", NA)))
 
 #*****************************************************************************
 ## Rbind all the data frames together (except delivery and enrollment ultrasound)
 #*****************************************************************************
 maternal_all <- bind_rows(mnh01_sub, mnh04_sub, mnh05_sub,
-                          mnh06_sub,mnh07_sub, mnh08_sub, mnh12_sub) 
-
-maternal_all <- bind_rows(mnh01_sub, mnh04_sub, mnh05_sub,
-                          mnh07_sub) 
-
+                          mnh06_sub,mnh07_sub, mnh08_sub) 
 
 ## Merge in enrollment ultrasound data 
 maternal_all <- left_join(maternal_all, mnh01_ga_at_enrl, by = c("MOMID", "PREGID"))
@@ -216,7 +192,7 @@ maternal_all_anc <- maternal_all_anc %>%
   mutate(DIFF_DAYS = as.numeric(VISITDATE - US_OHOSTDAT)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   mutate(GA_AT_VISIT_DAYS = GA_US_DAYS + DIFF_DAYS) %>%  ## add the number of days difference to GA at ultrasound to get the estimated GA at visit
   ## convert to weeks
-  mutate(GA_AT_VISIT_WKS = GA_AT_VISIT_DAYS %/% 7) %>% 
+  mutate(GA_AT_VISIT_WKS = floor(GA_AT_VISIT_DAYS/7)) %>% 
   ## double check overlapping anc 32 and anc 36 late windows 
   arrange(-desc(TYPE_VISIT)) %>% 
   #mutate(PREV_VISIT_TYPE = dplyr::lag(TYPE_VISIT, n = 1)) %>% 
@@ -250,11 +226,6 @@ maternal_all_anc_out_full <- maternal_all_anc_out %>%
 names(maternal_all_anc_out_full) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD", "VISIT_DATE",
                                      "AGE_AT_ENROLLMENT",  "AGE_AT_VISIT_DAYS", "AGE_AT_VISIT_WKS",
                                      "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT", "Error")
-
-## dupliates in mnh01 for visit type = 1 
-## GA at us >= 18 weeks should not have visit type == 2 
-## default value visit date
-
 #*****************************************************************************
 ## PNC visits 
 #*****************************************************************************
@@ -313,7 +284,6 @@ names(maternal_all_pnc_out_full) = c("FORM", "MOMID", "PREGID","INFANTID", "PERI
 ## generate new tab in query report to store more details  -- mege with infant before exporting
 #*****************************************************************************
 maternal_visit_types_full <- bind_rows(maternal_all_anc_out_full, maternal_all_pnc_out_full)
-maternal_visit_types_full=maternal_all_anc_out_full
 
 #*****************************************************************************
 ## Format to match query template
@@ -365,7 +335,7 @@ if (dim(maternal_all_anc_query)[1] >= 1 & dim(maternal_all_pnc_query)[1] >= 1){
   
 }
 
-MaternalVisitType_query=maternal_all_anc_query
+# MaternalVisitType_query=maternal_all_anc_query
 if (dim(MaternalVisitType_query)[1] > 1){
   
   ## add additional columns 
@@ -382,11 +352,10 @@ if (dim(MaternalVisitType_query)[1] > 1){
     mutate(QueryID = paste0(Form, "_", VisitDate, "_",MomID, "_",`Variable Name`, "_", `Variable Value`, "_", "06"))
   
   ## export variable checking query 
-  save(MaternalVisitType_query, file = paste0(maindir,"MaternalVisitType_query.rda"))
+  save(MaternalVisitType_query, file = paste0(maindir,"/MaternalVisitType_query.rda"))
   
 }
 
-save(MaternalVisitType_query, file = paste0(maindir,"/MaternalVisitType_query.rda"))
 
 #*****************************************************************************
 #* INFANT VISIT TYPES
@@ -435,26 +404,30 @@ m09_INF1 <- mnh09_sub %>%
   filter(INFANTID != "n/a") %>% 
   mutate(as.character(INFANTID)) %>% 
   select(MOMID, PREGID,INFANTID, contains("_INF1")) %>% 
-  rename_with(~str_remove(., '_INF1')) 
+  rename_with(~str_remove(., '_INF1')) %>% 
+  mutate_all(as.character)
 
 m09_INF2 <- mnh09_sub %>% rename("INFANTID" = "INFANTID_INF2") %>% 
   filter(INFANTID != "n/a") %>% 
   mutate(as.character(INFANTID)) %>% 
   select(MOMID, PREGID,INFANTID, contains("_INF2")) %>% 
   rename_with(~str_remove(., '_INF2')) %>% 
-  mutate(as.character(DELIV_DSSTDAT)) 
+  mutate(as.character(DELIV_DSSTDAT))  %>% 
+  mutate_all(as.character)
 
 m09_INF3 <- mnh09_sub %>% rename("INFANTID" = "INFANTID_INF3") %>% 
   filter(INFANTID != "n/a") %>% 
   mutate(as.character(INFANTID)) %>% 
   select(MOMID, PREGID,INFANTID, contains("_INF3")) %>% 
-  rename_with(~str_remove(., '_INF3')) 
+  rename_with(~str_remove(., '_INF3')) %>% 
+  mutate_all(as.character)
 
 m09_INF4 <- mnh09_sub %>% rename("INFANTID" = "INFANTID_INF4") %>%
   filter(INFANTID != "n/a") %>% 
   mutate(as.character(INFANTID)) %>% 
   select(MOMID, PREGID,INFANTID, contains("_INF4")) %>% 
-  rename_with(~str_remove(., '_INF4'))
+  rename_with(~str_remove(., '_INF4')) %>% 
+  mutate_all(as.character)
 
 ## bind all infants together 
 ## if sites have infant id columns that are "blank", remove them from the binding code below. 
@@ -509,7 +482,7 @@ infant_all_pnc <- infant_all_pnc %>%
   ## need to confirm if this needs to have a +1 to account for day 1 of life 
   mutate(DAYS_PNC = as.numeric(VISITDATE - DOB)) %>%  ## calculate the days difference from the visit to the enrollment ultrasound
   ## convert to weeks
-  mutate(WKS_PNC = DAYS_PNC %/% 7) %>% 
+  mutate(WKS_PNC = floor(DAYS_PNC/7)) %>% 
   mutate(EXPECTED_TYPE_VISIT = ifelse(DAYS_PNC >= 3 & DAYS_PNC <= 5, 7, 
                                       ifelse(DAYS_PNC >= 7 & DAYS_PNC <= 14, 8, 
                                              ifelse(DAYS_PNC >= 28 & DAYS_PNC <= 35, 9, 
@@ -553,7 +526,6 @@ if (dim(visit_type_query_extra_tab)[1] > 1){
   save(visit_type_query_extra_tab, file = paste0(maindir,"/visit_type_extra_tab.rda"))
   
 }
-
 
 #*****************************************************************************
 ## Format to match query template

@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #2 -- CHECK FOR DUPLICATE IDs
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 20 October  2023
+#* Last updated: 21 November  2023
 
 #*Input: Wide data (all raw .csv files) & Long data 
 #*Functions: 
@@ -46,20 +46,15 @@ load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = 
 path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
 
 #*****************************************************************************
-#* check duplicated IDs 
-#* The following codes will extract and ID that is duplicated in the data based on visit date/visit type/MOMID, PREGID, INFANTID
+#* check duplicated IDs, also check the rest vars' info
 #*****************************************************************************
 #*Make empty dataframe 
-#* any maternal duplicate ids will be stored in the VarNamesDuplicate data frame
 VarNamesDuplicate <- as.data.frame(matrix(nrow = 1, ncol = 6))
 names(VarNamesDuplicate) = c("SCRNID","MOMID", "PREGID","VisitType", "VisitDate", "Form")
 
 #*Make empty dataframe 
-#* any infant duplicate ids will be stored in the VarNamesDuplicate data frame
 VarNamesDuplicate_Inf <- as.data.frame(matrix(nrow = 1, ncol = 7))
 names(VarNamesDuplicate_Inf) = c("SCRNID","MOMID", "PREGID", "INFANTID", "VisitType", "VisitDate", "Form")
-
-
 
 #****************************************
 #* SCRNID --> 00 and 02
@@ -943,12 +938,12 @@ if (exists("mnh20")==TRUE){
   
   # add visit type column  if duplicates exist 
   if (length(m20_id_dup >1)) {
-    m20_id_dup = add_column(m20_id_dup,VisitType = NA , .after = "PREGID")
+    m20_id_dup = add_column(m20_id_dup, VisitType = NA , .after = "INFANTID")
   }
   
   # rename columns if duplicates exist 
   if (length(m20_id_dup >1)) {
-    names(m20_id_dup) = c("SCRNID","MOMID", "PREGID","InfantID","VisitType", "VisitDate")
+    names(m20_id_dup) = c("SCRNID","MOMID", "PREGID","INFANTID","VisitType", "VisitDate")
   }
   
   # add form column 
@@ -958,7 +953,7 @@ if (exists("mnh20")==TRUE){
   m20_id_dup <- m20_id_dup %>% unique() 
   
   #*bind with other forms
-  if (nrow(m20_id_dup >1)){
+  if (nrow(m20_id_dup) >1){
     VarNamesDuplicate_Inf <- rbind(VarNamesDuplicate_Inf, m20_id_dup)
   } 
   
@@ -1230,34 +1225,34 @@ if (exists("mnh26")==TRUE){
   }
 }
 
-#****************************************
-#* ADJUST FOR VISIT TYPE = 13
-#****************************************
-## since a woman can have multiple visit type = 13 for each form, we need to find any duplicate women who have the same visit type = 13 AND visit date
-# create new sub dataset so extract visit type 13 
-VarNamesDuplicate_visit13 = VarNamesDuplicate %>%  filter(VisitType == 13)
-
-dup_visit_13 <- function(form) {
-  ID <- form %>% 
-    select(MOMID, PREGID, VisitDate)
-  dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
-    arrange(MOMID, PREGID, VisitDate) 
-  dupID <-print(dup, n=nrow(dup), na.print=NULL)
-  return(dup)
-}
-
-# this will produce the list of true duplicate visit type = 13s that have the same visit day 
-dup_visit_13_out <- dup_visit_13(VarNamesDuplicate_visit13)
-
-# to finalize the duplicate query output, we need to replace the old visit type = 13 queries pull and replace with these new queries 
-# step 1. remove old visit = 13 queries pulled from all of the codes above
-VarNamesDuplicate = VarNamesDuplicate %>% filter(VisitType != 13) ## keep everything but visit type = 13
-# step 2. re-bind the visit type = 13 that we just fixed 
-VarNamesDuplicate = rbind(VarNamesDuplicate, VarNamesDuplicate_visit13)
-
-# fix random issues with VarNamesDuplicate_Inf visit type class 
-VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
-
+# #****************************************
+# #* ADJUST FOR VISIT TYPE = 13
+# #****************************************
+# ## since a woman can have multiple visit type = 13 for each form, we need to find any duplicate women who have the same visit type = 13 AND visit date
+# # create new sub dataset so extract visit type 13 
+# VarNamesDuplicate_visit13 = VarNamesDuplicate %>%  filter(VisitType == 13)
+# 
+# dup_visit_13 <- function(form) {
+#   ID <- form %>% 
+#     select(MOMID, PREGID, VisitDate)
+#   dup <- form[duplicated(ID) | duplicated(ID, fromLast = TRUE),] %>% 
+#     arrange(MOMID, PREGID, VisitDate) 
+#   dupID <-print(dup, n=nrow(dup), na.print=NULL)
+#   return(dup)
+# }
+# 
+# # this will produce the list of true duplicate visit type = 13s that have the same visit day 
+# dup_visit_13_out <- dup_visit_13(VarNamesDuplicate_visit13)
+# 
+# # to finalize the duplicate query output, we need to replace the old visit type = 13 queries pull and replace with these new queries 
+# # step 1. remove old visit = 13 queries pulled from all of the codes above
+# VarNamesDuplicate = VarNamesDuplicate %>% filter(VisitType != 13) ## keep everything but visit type = 13
+# # step 2. re-bind the visit type = 13 that we just fixed 
+# VarNamesDuplicate = rbind(VarNamesDuplicate, VarNamesDuplicate_visit13)
+# 
+# # fix random issues with VarNamesDuplicate_Inf visit type class 
+# VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
+# 
 #****************************************
 #* BIND ALL DATA FRAMES 
 #****************************************
@@ -1276,6 +1271,7 @@ VarNamesDuplicate <- VarNamesDuplicate %>%
 
 # fix random issues with VarNamesDuplicate_Inf visit type class 
 VarNamesDuplicate_Inf$VisitType = as.character(VarNamesDuplicate_Inf$VisitType)
+VarNamesDuplicate$VisitType = as.character(VarNamesDuplicate$VisitType)
 
 ## update variable value column 
 VarNamesDuplicate_Inf <- VarNamesDuplicate_Inf %>% 
@@ -1314,9 +1310,12 @@ VarNamesDuplicate <- VarNamesDuplicate %>%
 
 duplicates_query <- VarNamesDuplicate
 
+
+## REMOVE VISIT TYPE = 13 or 14 
+duplicates_query <- duplicates_query %>% filter(!VisitType %in% c(13,14))
+
 #export
 save(duplicates_query, file = paste0(maindir,"/queries/duplicates_query"))
-
 
 #*****************************************************************************
 #* comparing mom id 
@@ -1452,3 +1451,4 @@ if (dim(InfidNotMatched)[1] >= 1){
   #export Inf ID not matched query 
   save(InfidNotMatched_query, file = paste0(maindir,"/queries/InfidNotMatched_query.rda"))
 }
+

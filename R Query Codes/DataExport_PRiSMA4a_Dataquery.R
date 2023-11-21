@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #6 -- Generate Query Report 
 #* Written by: Stacie Loisate & Xiaoyan Hu & Precious Williams
-#* Last updated: 20 October  2023
+#* Last updated: 21 November  2023
 
 #*Input: all .rds files 
 #*Function: merge all queries together and assign query ID 
@@ -169,20 +169,6 @@ table_high_freq_outofrange <- bind_rows(
 tab_high_frequency_export <- bind_rows(table_high_freq_outofrange, table_high_freq_non) %>% select ('Form and Edit Type', varname, form, EditType, response, Frequency, min, max, response_range, DefaultValue, Recommendations)
 
 #*****************************************************************************
-#* Generating summary table 
-#* This will display a table that has the frequency of each edit type reported in each form 
-#* Can 
-#*****************************************************************************
-high_freq_vars = tab_high_frequency_export %>% distinct(varname) %>% pull(varname) ## create a vector of high frequency variables 
-
-table_freq_FmNmEd <- report %>%
-  #filter(!(`Variable Name` %in% high_freq_vars)) %>%  ## include this code here if you remove high frequency variables from the summary table  
-  group_by(Form_Edit_Type) %>%
-  count(name ="Frequency") %>%
-  rename("Form and Edit Type" = "Form_Edit_Type") %>%
-  filter(!(is.na(`Form and Edit Type`)))
-
-#*****************************************************************************
 #* Extracting previous week's queries -- to do still 
 #*****************************************************************************
 # we want to remove any query that the site said was not actually something that needed to be flagged - remove below
@@ -204,11 +190,26 @@ non_queries_merged <- non_queries_merged %>% distinct() ## extract unique elemen
 #write.xlsx(non_queries_merged, file = paste("~/PRiSMAv2Data/", site, "/", site_label, "_non-queries-ongoing", ".xlsx", sep = ""))
 
 ## Step 4. Convert to vector
-queryid_to_remove_vec =  queryid_to_remove %>% pull(as.vector(QueryID)) ## extract vector of query IDs to remove
+queryid_to_remove_vec =  non_queries_merged %>% pull(as.vector(QueryID)) ## extract vector of query IDs to remove
 
 ## Step 5. Remove the query ids that should not be pulled from THIS week's report 
 report_query_to_export = report %>% filter(!(QueryID %in% queryid_to_remove_vec))%>% 
   filter(!((VisitType %in% c(13,14) & EditType == "Duplicate ID" ))) ## remove visit type = 13 -- not relevant for this query
+
+
+#*****************************************************************************
+#* Generating summary table 
+#* This will display a table that has the frequency of each edit type reported in each form 
+#* Can 
+#*****************************************************************************
+high_freq_vars = tab_high_frequency_export %>% distinct(varname) %>% pull(varname) ## create a vector of high frequency variables 
+
+table_freq_FmNmEd <- report_query_to_export %>%
+  filter(!(`Variable Name` %in% high_freq_vars)) %>%  ## include this code here if you remove high frequency variables from the summary table  
+  group_by(Form_Edit_Type) %>%
+  count(name ="Frequency") %>%
+  rename("Form and Edit Type" = "Form_Edit_Type") %>%
+  filter(!(is.na(`Form and Edit Type`)))
 
 #*****************************************************************************
 #* export this week's query report all to a new excel sheet 

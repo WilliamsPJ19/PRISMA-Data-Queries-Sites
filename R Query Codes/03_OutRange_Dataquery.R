@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 20 October  2023
+#* Last updated: 21 November  2023
 
 #*Input: Long data 
 #*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
@@ -343,125 +343,13 @@ if (nrow(ConRangeQuery_Export)>=1){
 if (nrow(ConRangeQuery_Export)>=1){
   ConRangeQuery_Export$`Variable Value` = as.character(ConRangeQuery_Export$`Variable Value`)
 }
-#*****************************************************************************
-#*Dates 
-#* EDD before visit date 
-#* Visit dates after today's date  
-#*****************************************************************************
-## EDD before visit date/today's date 
-# extract date variables from the data dictionary 
-requested_varNames_out_edd <- varNames_sheet %>% filter(`Query Category` == "Date",
-                                                        #  !(`varname` %in% fetal_biometry_vars), 
-                                                        str_detect(varname, "EDD")) 
-form_num = toupper(form_num)
-requested_varNames_out_var <- requested_varNames_out_edd %>% filter(form %in% form_num) %>% 
-  pull(varname)
 
-# get a list of women who have delivered - we want to remove them from this query about EDD 
-birth_outcome_vars = c("BIRTH_DSTERM_INF1", "BIRTH_DSTERM_INF2", "BIRTH_DSTERM_INF3", "BIRTH_DSTERM_INF4")
-delivered_momids <- data_long  %>% filter(varname %in% birth_outcome_vars) %>% filter(response == 1 | response == 2) %>% pull(MOMID)
-
-# extract date variables from the data 
-edd_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var, !(MOMID %in% delivered_momids))
-
-# make the response range dates 
-edd_out_range$response = ymd(parse_date_time(edd_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%d-%b-%y", "%Y-%m-%d"))))
-
-# run the query for any dates that are after today 
-edd_out_range$outrange = ifelse(edd_out_range$response <= Sys.Date() & 
-                                  edd_out_range$response != "1907-07-07", "TRUE", "FALSE")
-
-# make edit message 
-edd_out_range$editmessage <- ifelse(edd_out_range$outrange == "TRUE", "Out of Range", "No Error") 
-
-# filter out those that are out of range 
-edd_out_range_query <- edd_out_range %>% filter(editmessage == "Out of Range")
-
-## query any other dates/visit dates that occur after today's date 
-# extract date variables from the data dictionary 
-# first need to get all the edd variables and exclude 
-requested_varNames_out_edd <- requested_varNames_out_edd %>% pull(varname)
-requested_varNames_out <- varNames_sheet %>% filter(`Query Category` == "Date",
-                                                    !(`varname` %in% fetal_biometry_vars), 
-                                                    !(`varname` %in% requested_varNames_out_edd)) 
-form_num = toupper(form_num)
-requested_varNames_out_var <- requested_varNames_out %>% filter(form %in% form_num) %>% 
-  pull(varname)
-
-# extract date variables from the data 
-date_out_range <- data_long %>% filter(varname %in% requested_varNames_out_var)
-
-# make the response range dates 
-date_out_range$response = ymd(parse_date_time(date_out_range$response, order = c(c("%d/%m/%Y","%d-%m-%Y","%d-%b-%y","%Y-%m-%d"))))
-
-# run the query for any visit dates that are after today 
-date_out_range_vist <- date_out_range
-date_out_range_vist$outrange = ifelse(date_out_range_vist$response >= Sys.Date() & 
-                                        date_out_range_vist$response != "1907-07-07", "TRUE", "FALSE")
-
-# run the query for any dates that are after today for remainder of variables
-date_out_range_nonvisit_query = date_out_range
-date_out_range_nonvisit_query$outrange = ifelse(date_out_range_nonvisit_query$response >= Sys.Date() & 
-                                                  date_out_range_nonvisit_query$response != "1907-07-07", "TRUE", "FALSE")
-
-# make edit message 
-date_out_range_vist$editmessage <- ifelse(date_out_range_vist$outrange == "TRUE", "Out of Range", "No Error") 
-date_out_range_nonvisit_query$editmessage <- ifelse(date_out_range_nonvisit_query$outrange == "TRUE", "Out of Range", "No Error") 
-
-# filter out those that are out of range 
-date_out_range_visit_query <- date_out_range_vist %>% filter(editmessage == "Out of Range")
-date_out_range_nonvisit_query <- date_out_range_nonvisit_query %>% filter(editmessage == "Out of Range")
-
-# rbind non-edd date queries 
-date_out_range_query_subset <- rbind(date_out_range_nonvisit_query, date_out_range_visit_query)
-
-## rbind all date queries here 
-date_out_range_query <- rbind(date_out_range_query_subset, edd_out_range_query)
-
-# get tab of variables that have default values 
-default_values <- c("1907-07-07", "07/07/1907", "07-07-1907")
-out_range_default_value_date <- date_out_range_query %>% 
-  group_by(varname) %>% 
-  add_count(name = "n_total") %>%                    ## get the total count for each variable 
-  filter(editmessage == "Out of Range") %>%          ## only look at the variables that do not include default values in the resposne options
-  group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
-  count(name ="n_response") %>%                      ## count the number each specific response is reported 
-  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
-  filter(response %in% default_values)               ## exclude to only the default values 
-
-# remove default values for query but will review at the end of script 
-date_out_range_query <- date_out_range_query %>% filter(!(response %in% default_values)) 
-
-# remove MNH25 variables -- we will check these later 
-date_out_range_query <- date_out_range_query %>% filter(form != "MNH25")
-
-## only keep the first 7 columns 
-OutRangeDateQuery_Export = date_out_range_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
-
-# update naming
-names(OutRangeDateQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
-
-## add additional columns 
-if (nrow(OutRangeDateQuery_Export)>=1){
-  OutRangeDateQuery_Export = cbind(QueryID = NA, 
-                                   UploadDate = UploadDate, 
-                                   #MomID = "NA", PregID = "NA",
-                                   #VisitDate = "NA", 
-                                   OutRangeDateQuery_Export, 
-                                   #`Variable Name` = "NA",
-                                   FieldType = "Date", 
-                                   EditType = "Out of Range", 
-                                   DateEditReported = format(Sys.time(), "%Y-%m-%d"))
-}
-
-if (nrow(OutRangeDateQuery_Export)>=1){
-  OutRangeDateQuery_Export$`Variable Value` = as.character(OutRangeDateQuery_Export$`Variable Value`)
-}
 #*****************************************************************************
 #*MNH25 Variable Queries 
 #*****************************************************************************
 # Set MNH25 form
 mnh25_to_exclude <- c("MNH25_Ghana", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan", "MNH25_India") # make a vector of all MNH25 forms 
+site = "India"
 mnh25_to_exclude <- mnh25_to_exclude[!grepl(paste0(site), mnh25_to_exclude)] # exclude the form of the site we are currently running. We will this to filter out all the forms we DONT need from the data dictionary
 
 varNames_sheet <- varNames_sheet %>%
@@ -932,6 +820,10 @@ out <- add_column(out, Form_Edit_Type=paste(out$Form,"_",out$EditType))
 # add visit type column 
 out = add_column(out, VisitType = NA , .after = "InfantID")
 
+# confirm date class 
+out <- out %>% 
+  mutate(VisitDate = ymd(parse_date_time(VisitDate, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) 
+
 OutRangeCheck_query <- out
 
 ## assign queryid -- 
@@ -1032,3 +924,4 @@ High_Freq_Invalid_Query <- add_column(High_Freq_Invalid_Query, 'Form and Edit Ty
                                         High_Freq_Invalid_Query$EditType, sep = ""))
 
 save(High_Freq_Invalid_Query, file = paste0(maindir,"/queries/High_Freq_Invalid_Query.rda"))
+
