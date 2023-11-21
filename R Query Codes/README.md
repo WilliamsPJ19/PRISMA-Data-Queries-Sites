@@ -1,6 +1,6 @@
-# PRiSMA Data Cleaning Codes
-This repository contains all PRiSMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 20 October 2023*
+# PRISMA Data Query Codes
+This repository contains all PRISMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
+#### :pushpin: *Last updated on 21 November 2023*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
@@ -14,21 +14,21 @@ This repository contains all PRiSMA codes that will be used internally and by si
  
      
 ## Queries Included: 
-**1\. `00_DataImport_PRiSMA4a_MatDataquery.R`** 
+**1\. `00_DataImport_MatDataquery.R`** 
    - input: All MNH raw data
    - output:
      - Two .RData files of the data - wide and long 
    - function: 
      - Import raw data from sites uploaded to synapse 
 				
-**2\. `01_CoreVar_PRiSMA4a_Mat_Dataquery.R`** 
+**2\. `01_CoreVar_Dataquery.R`** 
    - input: Wide data (all raw .csv files)
    - output:
      - One .rda file with all missing or extra variable names 
    - function: 
      - Check to make sure all variables exist in the data and match data dictionary formatting 
 
-**3\. `02_DupID_PRiSMA4a_Mat_Dataquery.R`** 
+**3\. `02_DupID_Dataquery.R`** 
    - input: Wide data (all raw .csv files)
    - output:
      - One .rda file with all duplicate IDs 
@@ -38,28 +38,28 @@ This repository contains all PRiSMA codes that will be used internally and by si
      - Idenity any MomIDs that are in the study (have forms MNH03-MNH25) but are missing an enrollment form (MNH02) 
 
 
-**4\. `03_OutRange_PRiSMA4a_Mat_Dataquery.R`** 
+**4\. `03_OutRange_Dataquery.R`** 
    - input: Long data 
    - output:
      - One .rda file with all out of range values 
    - function: 
      - Check for any out of range values  
 
-**5\. `04_VisitType_PRiSMA4a_Dataquery.R`** 
+**5\. `04_VisitType_Dataquery.R`** 
    - input: Wide data (all raw .csv files)
    - output:
      - One .rda file with all mismatched visit types 
    - function: 
      - Check for visit types that do not match the PRISMA window and gestational age at time of visit
 
-**5\. `05_MissingEnrollCrit_PRISMA_4a_Dataquery.R`** 
+**5\. `05_MissingEnrollCrit_Dataquery.R`** 
    - input: Wide data (all raw .csv files) and Long data
    - output:
      - One .rda file with all MOMIDs that do not meet enrollment criteria 
    - function: 
      - Confirm all enrolled particpants meet our enrollment criteria as in MNH02.
 
-**6\. `DataExport_PRiSMA4a_Dataquery.R`** 
+**6\. `DataExport_Dataquery.R`** 
    - input: All .rds files 
    - output:
      - Excel sheet with a full query report 
