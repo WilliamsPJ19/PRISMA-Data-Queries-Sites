@@ -1,6 +1,6 @@
 # PRISMA Data Query Codes
 This repository contains all PRISMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 21 November 2023*
+#### :pushpin: *Last updated on 16 December 2023*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
@@ -48,7 +48,9 @@ This repository contains all PRISMA codes that will be used internally and by si
 **5\. `04_VisitType_Dataquery.R`** 
    - input: Wide data (all raw .csv files)
    - output:
-     - One .rda file with all mismatched visit types 
+     - One .rda file with all mismatched visit types to include in query report tab
+     - One .rda file with all mismatched visit types + additional information to include as an extra tab in query report
+     - One .rda file with all instances of visit types occurring on the same day
    - function: 
      - Check for visit types that do not match the PRISMA window and gestational age at time of visit
 
