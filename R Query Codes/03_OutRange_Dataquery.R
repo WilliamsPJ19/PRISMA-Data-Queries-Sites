@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 21 November  2023
+#* Last updated: 26 February 2024
 
 #*Input: Long data 
 #*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
@@ -283,7 +283,7 @@ names(requested_varNames_out_w_MinMax) = c("form", "varname", "min", "max") #, "
 forms_con_merged <- merge(forms_con, requested_varNames_out_w_MinMax, by = c("form", "varname"))
 
 # make sure response options, min, and max values are numeric 
-forms_con_merged$response = as.numeric(forms_con_merged$response)
+forms_con_merged$response = as.numeric(forms_con_merged$response, na.rm = TRUE)
 forms_con_merged$min = as.numeric(forms_con_merged$min)
 forms_con_merged$max = as.numeric(forms_con_merged$max)
 #forms_con_merged$DefaultValue = as.numeric(forms_con_merged$DefaultValue)
@@ -305,7 +305,7 @@ out_range_default_value_continuous <- forms_con_merged %>%
   filter(editmessage == "Out of Range") %>%          ## only look at the variables that do not include default values in the resposne options
   group_by(form, varname, response,n_total) %>%      ## group by variable name, response, total, and form
   count(name ="n_response") %>%                      ## count the number each specific response is reported 
-  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse 
+  mutate(pcnt_total = (n_response/n_total)*100) %>%  ## get percentange each reponse
   filter(response %in% default_values_continuous)    ## exclude to only the default values 
 
 # remove default values from query, but will review tabulation at end of script 
@@ -344,18 +344,81 @@ if (nrow(ConRangeQuery_Export)>=1){
   ConRangeQuery_Export$`Variable Value` = as.character(ConRangeQuery_Export$`Variable Value`)
 }
 
+
+#*****************************************************************************
+#* Out of range dates
+#*****************************************************************************
+# extract the date variables from the data dictionary
+## also remove variables we would expect very early or futuristic days such as mothers date of birth and estimated due date (EDD dates will be checked in 07_EDD_query)
+requested_varNames_vec <- varNames_sheet %>% filter(`Field Type (Date, Time, Number, Text)` == "Date") %>% 
+  filter(!varname %in% c("BRTHDAT", "US_EDD_BRTHDAT_FTS1", "US_EDD_BRTHDAT_FTS2", "US_EDD_BRTHDAT_FTS3", "US_EDD_BRTHDAT_FTS4", 
+                         "ESTIMATED_EDD_SCDAT", "CAL_EDD_BRTHDAT_FTS1", "CAL_EDD_BRTHDAT_FTS2", "CAL_EDD_BRTHDAT_FTS3", "CAL_EDD_BRTHDAT_FTS4")) %>% 
+  pull(varname)
+
+# extract continuous variables from the data 
+forms_date_full <- data_long %>% filter(varname %in% requested_varNames_vec) 
+
+# convert to date class 
+forms_date <- forms_date_full %>% 
+  mutate(response = ymd(parse_date_time(response, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
+  ## filter out any default values 
+  filter(!response %in% c(ymd("2007-07-07"), ymd("1907-07-07"),  ymd("1905-05-05"), ymd("1909-09-09")))
+
+# query -- if greater than the upload date OR less than 2000, then query
+forms_date$outrange <- ifelse((forms_date$response > ymd(paste0(UploadDate)) | forms_date$response < ymd("2000-01-01")), forms_date$response, "")
+
+# make edit message 
+forms_date$editmessage <- ifelse(forms_date$outrange == "", "NoError", "Out of Range")
+
+# filter out those that are out of range 
+forms_date_query <- forms_date %>% filter(editmessage == "Out of Range")
+
+## only keep the first 7 columns 
+forms_date_query <- forms_date_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+DateRangeQuery_Export <- forms_date_query
+
+# update naming
+names(DateRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+
+## add additional columns 
+
+if (nrow(DateRangeQuery_Export)>=1){
+  
+  DateRangeQuery_Export = cbind(QueryID = NA, 
+                                UploadDate = UploadDate, 
+                                #MomID = "NA", PregID = "NA",
+                                #VisitDate = "NA", 
+                                DateRangeQuery_Export, 
+                                #`Variable Name` = "NA",
+                                FieldType = "Date", 
+                                EditType = "Date Out of Range", 
+                                DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+}
+
+if (nrow(DateRangeQuery_Export)>=1){
+  DateRangeQuery_Export$`Variable Value` = as.character(DateRangeQuery_Export$`Variable Value`)
+}
+
+
 #*****************************************************************************
 #*MNH25 Variable Queries 
 #*****************************************************************************
 # Set MNH25 form
 mnh25_to_exclude <- c("MNH25_Ghana", "MNH25_Kenya", "MNH25_Zambia", "MNH25_Pakistan", "MNH25_India") # make a vector of all MNH25 forms 
-site = "India"
-mnh25_to_exclude <- mnh25_to_exclude[!grepl(paste0(site), mnh25_to_exclude)] # exclude the form of the site we are currently running. We will this to filter out all the forms we DONT need from the data dictionary
+
+## extra coding to work around 2 india sites 
+if (site == "India-CMC" | site == "India-SAS"){
+  site_mnh25 = "India"
+} else {
+  site_mnh25 = site
+}
+
+mnh25_to_exclude <- mnh25_to_exclude[!grepl(paste0(site_mnh25), mnh25_to_exclude)] # exclude the form of the site we are currently running. We will this to filter out all the forms we DONT need from the data dictionary
 
 varNames_sheet <- varNames_sheet %>%
   filter(!(form %in% mnh25_to_exclude))
 
-if (site=="Kenya"){
+if (site_mnh25=="Kenya"){
   
   # extract continuous variables from the data dictionary 
   requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Kenya") 
@@ -442,7 +505,7 @@ if (site=="Kenya"){
   
 }
 
-if (site=="Pakistan"){
+if (site_mnh25=="Pakistan"){
   
   # extract continuous variables from the data dictionary 
   requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Pakistan") 
@@ -529,7 +592,7 @@ if (site=="Pakistan"){
   
 }
 
-if (site=="Ghana"){
+if (site_mnh25=="Ghana"){
   
   # extract continuous variables from the data dictionary 
   requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Ghana") 
@@ -616,7 +679,7 @@ if (site=="Ghana"){
   
 }
 
-if (site=="Zambia"){
+if (site_mnh25=="Zambia"){
   
   # extract continuous variables from the data dictionary 
   requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_Zambia") 
@@ -704,7 +767,7 @@ if (site=="Zambia"){
 }
 
 
-if (site=="India"){
+if (site_mnh25=="India"){
   
   # extract continuous variables from the data dictionary 
   requested_varNames_out <- varNames_sheet %>% filter(form == "MNH25_India") 
@@ -842,8 +905,8 @@ save(OutRangeCheck_query, file = paste0(maindir,"/queries/OutRangeCheck_query.rd
 # example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
 # if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
 
-view(invalid_response_default_value)
-view(out_range_default_value_continuous)
+# view(invalid_response_default_value)
+# view(out_range_default_value_continuous)
 
 
 ## the follow tables show the % of responses that were default values that were NOT already included on the answer option
@@ -881,8 +944,9 @@ OutRange_Invalid_Query_Summary <- OutRange_Invalid_Query_Summary %>%
                                   "Change default value to 77 if not applicable",
                                   ifelse(response %in% c("-5"),
                                          "Change default value to 55 if data point is missing",
-                                         "Input valid data within the Response Range Options")))
+                                         "Input valid data within the Response Range Options"))) 
 
+OutRange_Invalid_Query_Summary$Recommendations = as.character(OutRange_Invalid_Query_Summary$Recommendations)
 #For Continuous Variables
 #Step One: Get the count and group by response
 
@@ -896,6 +960,7 @@ common_data_cont <- forms_con_merged %>%
   group_by(min, max, response, form, varname) %>%
   summarize(min = unique(min)) %>%
   cbind(DefaultValue = " -5, Missing Data point; -7,Not Applicable; -9,Dont Know -6,Refused to Answer")
+
 
 # Join the two data frames
 OutRange_Cont_Query_Summary <- inner_join(summary_cont_1, common_data_cont, by = 

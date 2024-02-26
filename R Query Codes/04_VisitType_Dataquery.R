@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #4 -- VISIT TYPE QUERIES
 #* Written by: Stacie Loisate 
-#* Last updated: 6 December 2023
+#* Last updated: 26 February 2024
 
 #*Input: Wide data
 #*Function: check for visit types that do not match based on estimated gestational age at visit 
@@ -45,11 +45,11 @@ maindir <- paste0("~/PRiSMAv2Data/", site,"/", UploadDate, "/queries", sep = "")
 #*****************************************************************************
 ## Load in wide data (we really only need MNH22 to filter out any protocol deviations)
 load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
-
 #*****************************************************************************
 #* not all sites are reporting momid and pregid in mnh01 - this will cause some issues in this workflow 
 #* solution: merge in momid and pregid from MNH02 into MNH01 based on scrnid
 #*****************************************************************************
+
 mnh02_ids <- mnh02 %>% select(SCRNID, MOMID, PREGID)
 
 if (site == "Zambia"){
@@ -58,12 +58,9 @@ if (site == "Zambia"){
     left_join(mnh02_ids, by = c("SCRNID")) %>% 
     mutate_at(vars(starts_with("US_GA_")), ~ as.numeric(ifelse(. == ".", -7, as.character(.)))) 
   
-  
-    
 } else {
   mnh01_newids <- mnh01 %>% select(-MOMID, -PREGID) %>% ## remove momid and pregid vars in mnh01 - will use ids from mnh02
     left_join(mnh02_ids, by = c("SCRNID"))
-  
   
 }
 
@@ -74,8 +71,7 @@ if (site == "Zambia"){
 #*****************************************************************************
 
 # India-CMC is already reporting acog (CAL_GA_WKS_AGE_FTS1-4 & CAL_GA_DAYS_AGE_FTS1-4) - use these estimates as the BOE for CMC site
-  # all other sites boe estimates will be calculated using a formula with ultrasound and lmp reports as inputs
-if (site=="India-CMC"){
+if (site=="India-CMC" | site=="India-SAS"){
   
   mnh01_raw <- mnh01_newids %>% select(MOMID, PREGID, US_OHOSTDAT, TYPE_VISIT, contains("CAL_GA_WKS_AGE_"), contains("CAL_GA_DAYS_AGE_"))
   
@@ -131,7 +127,7 @@ out_dup_ids <- out_dup_ids %>% pull(MOMID)
 mnh01_sub <- mnh01_sub %>% filter(!(MOMID %in% out_dup_ids))
 
 ## separate into 2 dataframes: one with GA at enrollment visit only -- we will use this to calculate GA at each visit.
-    #  and one with the other visit types  
+#  and one with the other visit types  
 mnh01_ga_at_enrl <- mnh01_sub %>% filter(TYPE_VISIT == 1) %>% select(-TYPE_VISIT)
 mnh01_sub <- mnh01_sub %>% filter(TYPE_VISIT != 1) %>% rename("VISITDATE" = "US_OHOSTDAT") %>% 
   select(-c(GA_US_DAYS, GA_US_WKS, EST_CONCEP_DATE)) %>% 
@@ -153,10 +149,14 @@ mnh06_sub <- mnh06 %>% select(MOMID, PREGID, TYPE_VISIT, DIAG_VSDAT) %>%
   rename("VISITDATE" = "DIAG_VSDAT") %>% 
   mutate(FORM = "MNH06")
 
+mnh07_sub <- read_excel("~/mnh07_sub.xlsx")
+
 mnh07_sub <- mnh07 %>% select(MOMID, PREGID, TYPE_VISIT, MAT_SPEC_COLLECT_DAT) %>%
   mutate(MAT_SPEC_COLLECT_DAT = ymd(parse_date_time(MAT_SPEC_COLLECT_DAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "MAT_SPEC_COLLECT_DAT") %>% 
   mutate(FORM = "MNH07")
+
+
 
 mnh08_sub <- mnh08 %>% select(MOMID, PREGID, TYPE_VISIT, LBSTDAT) %>% 
   mutate(LBSTDAT = ymd(parse_date_time(LBSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
@@ -164,47 +164,47 @@ mnh08_sub <- mnh08 %>% select(MOMID, PREGID, TYPE_VISIT, LBSTDAT) %>%
   mutate(FORM = "MNH08")
 
 ## For MNH09: 
-  # we need to extract the minimum delivery datetime in the event of a multiples pregnancy
-  # if site == Kenya, change default date format to 2007-07-07; all other sites will have 1907-07-07
+# we need to extract the minimum delivery datetime in the event of a multiples pregnancy
+# if site == Kenya, change default date format to 2007-07-07; all other sites will have 1907-07-07
 
 if (site=="Kenya"){
-mnh09_sub <- mnh09 %>% select(MOMID, PREGID, 
-                              DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF2, 
-                              DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF4,
-                              DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF2, 
-                              DELIV_DSSTTIM_INF3, DELIV_DSSTTIM_INF4)  %>% 
-  mutate(DELIV_DSSTDAT_INF1 = ymd(parse_date_time(DELIV_DSSTDAT_INF1, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
-         DELIV_DSSTDAT_INF2 = ymd(parse_date_time(DELIV_DSSTDAT_INF2, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
-         DELIV_DSSTDAT_INF3 = ymd(parse_date_time(DELIV_DSSTDAT_INF3, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
-         DELIV_DSSTDAT_INF4 = ymd(parse_date_time(DELIV_DSSTDAT_INF4, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
-  ) %>% 
-  # replace default value date with NA 
-  mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("2007-07-07"), NA),
-         DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("2007-07-07"), NA)) %>%
-
-  # replace default value time with NA 
-  mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  ## should be 77:77, but pak is using 07:07
-         DELIV_DSSTTIM_INF2 = replace(DELIV_DSSTTIM_INF2, DELIV_DSSTTIM_INF2=="77:77", NA),
-         DELIV_DSSTTIM_INF3 = replace(DELIV_DSSTTIM_INF3, DELIV_DSSTTIM_INF3=="77:77", NA),
-         DELIV_DSSTTIM_INF4 = replace(DELIV_DSSTTIM_INF4, DELIV_DSSTTIM_INF4=="77:77", NA)) %>%
-  # concatenate date and time of birth
-  mutate(DELIVERY_DATETIME_INF1 = paste(DELIV_DSSTDAT_INF1, DELIV_DSSTTIM_INF1),
-         DELIVERY_DATETIME_INF2 = paste(DELIV_DSSTDAT_INF2, DELIV_DSSTTIM_INF2),
-         DELIVERY_DATETIME_INF3 = paste(DELIV_DSSTDAT_INF3, DELIV_DSSTTIM_INF3),
-         DELIVERY_DATETIME_INF4 = paste(DELIV_DSSTDAT_INF4, DELIV_DSSTTIM_INF4)) %>%
-  # assign time field type for time of birth
-  mutate(DELIVERY_DATETIME_INF1 = as.POSIXct(DELIVERY_DATETIME_INF1, format= "%Y-%m-%d %H:%M"),
-         DELIVERY_DATETIME_INF2 = as.POSIXct(DELIVERY_DATETIME_INF2, format= "%Y-%m-%d %H:%M"),
-         DELIVERY_DATETIME_INF3 = as.POSIXct(DELIVERY_DATETIME_INF3, format= "%Y-%m-%d %H:%M"),
-         DELIVERY_DATETIME_INF4 = as.POSIXct(DELIVERY_DATETIME_INF4, format= "%Y-%m-%d %H:%M")) %>%
-  mutate(DOB = 
-           pmin(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF2,
-                DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF4, na.rm = TRUE)) %>% 
-  select(MOMID, PREGID, DOB) %>% 
-  mutate(DOB = ymd(DOB))
-
+  mnh09_sub <- mnh09 %>% select(MOMID, PREGID, 
+                                DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF2, 
+                                DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF4,
+                                DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF2, 
+                                DELIV_DSSTTIM_INF3, DELIV_DSSTTIM_INF4)  %>% 
+    mutate(DELIV_DSSTDAT_INF1 = ymd(parse_date_time(DELIV_DSSTDAT_INF1, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
+           DELIV_DSSTDAT_INF2 = ymd(parse_date_time(DELIV_DSSTDAT_INF2, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
+           DELIV_DSSTDAT_INF3 = ymd(parse_date_time(DELIV_DSSTDAT_INF3, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
+           DELIV_DSSTDAT_INF4 = ymd(parse_date_time(DELIV_DSSTDAT_INF4, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y"))),
+    ) %>% 
+    # replace default value date with NA 
+    mutate(DELIV_DSSTDAT_INF1 = replace(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF1==ymd("2007-07-07"), NA),
+           DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("2007-07-07"), NA),
+           DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("2007-07-07"), NA),
+           DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("2007-07-07"), NA)) %>%
+    
+    # replace default value time with NA 
+    mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  ## should be 77:77, but pak is using 07:07
+           DELIV_DSSTTIM_INF2 = replace(DELIV_DSSTTIM_INF2, DELIV_DSSTTIM_INF2=="77:77", NA),
+           DELIV_DSSTTIM_INF3 = replace(DELIV_DSSTTIM_INF3, DELIV_DSSTTIM_INF3=="77:77", NA),
+           DELIV_DSSTTIM_INF4 = replace(DELIV_DSSTTIM_INF4, DELIV_DSSTTIM_INF4=="77:77", NA)) %>%
+    # concatenate date and time of birth
+    mutate(DELIVERY_DATETIME_INF1 = paste(DELIV_DSSTDAT_INF1, DELIV_DSSTTIM_INF1),
+           DELIVERY_DATETIME_INF2 = paste(DELIV_DSSTDAT_INF2, DELIV_DSSTTIM_INF2),
+           DELIVERY_DATETIME_INF3 = paste(DELIV_DSSTDAT_INF3, DELIV_DSSTTIM_INF3),
+           DELIVERY_DATETIME_INF4 = paste(DELIV_DSSTDAT_INF4, DELIV_DSSTTIM_INF4)) %>%
+    # assign time field type for time of birth
+    mutate(DELIVERY_DATETIME_INF1 = as.POSIXct(DELIVERY_DATETIME_INF1, format= "%Y-%m-%d %H:%M"),
+           DELIVERY_DATETIME_INF2 = as.POSIXct(DELIVERY_DATETIME_INF2, format= "%Y-%m-%d %H:%M"),
+           DELIVERY_DATETIME_INF3 = as.POSIXct(DELIVERY_DATETIME_INF3, format= "%Y-%m-%d %H:%M"),
+           DELIVERY_DATETIME_INF4 = as.POSIXct(DELIVERY_DATETIME_INF4, format= "%Y-%m-%d %H:%M")) %>%
+    mutate(DOB = 
+             pmin(DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF2,
+                  DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF4, na.rm = TRUE)) %>% 
+    select(MOMID, PREGID, DOB) %>% 
+    mutate(DOB = ymd(DOB))
+  
 } else {
   mnh09_sub <- mnh09 %>% select(MOMID, PREGID, 
                                 DELIV_DSSTDAT_INF1, DELIV_DSSTDAT_INF2, 
@@ -221,7 +221,7 @@ mnh09_sub <- mnh09 %>% select(MOMID, PREGID,
            DELIV_DSSTDAT_INF2 = replace(DELIV_DSSTDAT_INF2, DELIV_DSSTDAT_INF2==ymd("1907-07-07"), NA),
            DELIV_DSSTDAT_INF3 = replace(DELIV_DSSTDAT_INF3, DELIV_DSSTDAT_INF3==ymd("1907-07-07"), NA),
            DELIV_DSSTDAT_INF4 = replace(DELIV_DSSTDAT_INF4, DELIV_DSSTDAT_INF4==ymd("1907-07-07"), NA)) %>%
-
+    
     # replace default value time with NA 
     mutate(DELIV_DSSTTIM_INF1 = replace(DELIV_DSSTTIM_INF1, DELIV_DSSTTIM_INF1=="77:77", NA),  ## should be 77:77, but pak is using 07:07
            DELIV_DSSTTIM_INF2 = replace(DELIV_DSSTTIM_INF2, DELIV_DSSTTIM_INF2=="77:77", NA),
@@ -244,7 +244,7 @@ mnh09_sub <- mnh09 %>% select(MOMID, PREGID,
     mutate(DOB = ymd(DOB))
   
 }
-  
+
 mnh12_sub <- mnh12 %>% select(MOMID, PREGID, TYPE_VISIT, VISIT_OBSSTDAT) %>% 
   mutate(VISIT_OBSSTDAT = ymd(parse_date_time(VISIT_OBSSTDAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "VISIT_OBSSTDAT") %>% 
@@ -255,7 +255,7 @@ mnh12_sub <- mnh12 %>% select(MOMID, PREGID, TYPE_VISIT, VISIT_OBSSTDAT) %>%
 #*****************************************************************************
 # bind rows of all forms except delivery and enrollment ultrasound
 maternal_all <- bind_rows(mnh01_sub, mnh04_sub, mnh05_sub,
-                          mnh06_sub,mnh07_sub, mnh08_sub) 
+                          mnh06_sub,mnh07_sub,mnh08_sub) 
 
 ## Merge in enrollment ultrasound data 
 maternal_all <- left_join(maternal_all, mnh01_ga_at_enrl, by = c("MOMID", "PREGID"))
@@ -267,9 +267,9 @@ maternal_all <- left_join(maternal_all, mnh09_sub, by = c("MOMID", "PREGID"))
 ## ANC visits
 #*****************************************************************************
 ## Data processing
-  # Extract all ANC visits 
-  # calculate GA at each vist for ANC visits 
-  # generate EXPECTED type visits 
+# Extract all ANC visits 
+# calculate GA at each vist for ANC visits 
+# generate EXPECTED type visits 
 anc_visits = c(1,2,3,4,5)
 maternal_all_anc = maternal_all %>% filter(TYPE_VISIT %in% anc_visits) %>% 
   mutate(GA_AT_VISIT_DAYS = as.numeric(VISITDATE - EST_CONCEP_DATE, na.rm= TRUE)) %>% 
@@ -296,77 +296,81 @@ maternal_all_anc = maternal_all %>% filter(TYPE_VISIT %in% anc_visits) %>%
                                                            ifelse(GA_AT_VISIT_DAYS >= 238 & GA_AT_VISIT_DAYS <= 300, 5, 88)))))) %>% 
   # if you enroll >17wks gestation, do you have an ANC20 visit when you are not required to have one -- these should not be queried
   mutate(UNEXPECTED_ANC20 = ifelse(REPORTED_TYPE_VISIT == 2 & PREV_VISIT_BINARY == 1 & (GA_US_DAYS >= 126 & GA_US_DAYS <140), 1, 0))
-  #filter(UNEXPECTED_ANC20 != 1) ## we can filter here if we do not want to include these
-  
+#filter(UNEXPECTED_ANC20 != 1) ## we can filter here if we do not want to include these
+
 
 ## Extracting Visit type errors: 
-  # generate new var if the reported visit is early or late compared to expected
-  # look for duplicates (using MOMID, PREGID, TYPE_VISIT) as keys 
-  # generate new variable with all reported visit types for each participant
+# generate new var if the reported visit is early or late compared to expected
+# look for duplicates (using MOMID, PREGID, TYPE_VISIT) as keys 
+# generate new variable with all reported visit types for each participant
 if (dim(maternal_all_anc)[1] >= 1) {
-mat_visit_type_errors_anc <- maternal_all_anc %>% 
-        # determine if the window is ontime or late (if exp-obs is positive, then reported visit is late; if negative, the reported visit is early)
-        mutate(VISIT_TYPE_DIFF = EXPECTED_TYPE_VISIT-REPORTED_TYPE_VISIT) %>% 
-        mutate(DIRECTION = ifelse(VISIT_TYPE_DIFF>0, "late", 
-                                  ifelse(VISIT_TYPE_DIFF<0, "early", NA))) %>% 
-        # generate new variable "N" that counts the number of times a unique MOMID and REPORTED_TYPE_VISIT exist in the data
-        group_by(MOMID,PREGID, FORM, REPORTED_TYPE_VISIT) %>% 
-        mutate(N = n()) %>% 
-        ungroup() %>% 
-        # if a REPORTED_TYPE_VISIT exists more than once for a participant (N>1) then we are considering this a duplicate
-        mutate(DUP_REPORTED_TYPE_VISIT = ifelse(N>1, 1, 0)) %>% 
-        group_by(MOMID, PREGID, FORM) %>% 
-        # generate a new variable "ALL_REPORTED_VISITS" that contains a string with all reported visit types for that participant
-        mutate(ALL_REPORTED_VISITS = paste(REPORTED_TYPE_VISIT, collapse = ",")) %>% 
-        ungroup() %>% 
-        filter(EXPECTED_TYPE_VISIT != 88)
-
-# Generate query error messages with the following logic, where DIRECTION indicates if the reported visit is earlier or later than expected:
-  ## if direction = LATE: 
-    # QUERY if REPORTED_TYPE_VISIT is a duplicate (DUP_REPORTED_TYPE_VISIT == 1)
-    # QUERY if EXPECTED_TYPE_VISIT already exists (EXISTS_EXPECTED_TYPE_VISIT == 1)
-  ## if direction = EARLY: 
-    # QUERY if EXPECTED_TYPE_VISIT does NOT already exists (EXISTS_EXPECTED_TYPE_VISIT == 0)
-mat_visit_type_errors_anc_out <- mat_visit_type_errors_anc %>% 
-  group_by(MOMID, PREGID, FORM) %>%
-  # generate variable if expected visit type already exists for the particpant
-  mutate(EXISTS_EXPECTED_TYPE_VISIT = ifelse(grepl(EXPECTED_TYPE_VISIT,ALL_REPORTED_VISITS), 1, 0)) %>% 
-  # generate error message variable
-  mutate(ERROR_MESSAGE = ifelse(EXPECTED_TYPE_VISIT == REPORTED_TYPE_VISIT, "no error",
-                           ifelse(VISITDATE == ymd("2007-07-07") | VISITDATE== ymd("1907-07-07"), "visit date is default value",
-                              ifelse(DIRECTION == "early" & EXISTS_EXPECTED_TYPE_VISIT == 0,"too early for reported visit type and expected visit type does not yet exist for this particpant for this form",
-                                  ifelse(DIRECTION == "late" &  DUP_REPORTED_TYPE_VISIT == 1, "reported visit type is a duplicate for this form", 
-                                       ifelse(DIRECTION == "late" &  EXISTS_EXPECTED_TYPE_VISIT == 1,"expected visit type already exists for this particpant for this form",
-                                              "no error"))))))%>% 
-  # if visit date == default value, replace DIRECTION with "invalid visit date"
-  mutate(DIRECTION = ifelse(ERROR_MESSAGE == "visit date is default value", "invalid visit date", DIRECTION)) %>% 
-  filter(ERROR_MESSAGE != "no error") # filter out non-queries
-
+  mat_visit_type_errors_anc <- maternal_all_anc %>% 
+    # determine if the window is ontime or late (if exp-obs is positive, then reported visit is late; if negative, the reported visit is early)
+    mutate(VISIT_TYPE_DIFF = EXPECTED_TYPE_VISIT-REPORTED_TYPE_VISIT) %>% 
+    mutate(DIRECTION = ifelse(VISIT_TYPE_DIFF>0, "late", 
+                              ifelse(VISIT_TYPE_DIFF<0, "early", NA))) %>% 
+    # generate new variable "N" that counts the number of times a unique MOMID and REPORTED_TYPE_VISIT exist in the data
+    group_by(MOMID,PREGID, FORM, REPORTED_TYPE_VISIT) %>% 
+    mutate(N = n()) %>% 
+    ungroup() %>% 
+    # if a REPORTED_TYPE_VISIT exists more than once for a participant (N>1) then we are considering this a duplicate
+    mutate(DUP_REPORTED_TYPE_VISIT = ifelse(N>1, 1, 0)) %>% 
+    group_by(MOMID, PREGID, FORM) %>% 
+    # generate a new variable "ALL_REPORTED_VISITS" that contains a string with all reported visit types for that participant
+    mutate(ALL_REPORTED_VISITS = paste(REPORTED_TYPE_VISIT, collapse = ",")) %>% 
+    ungroup() %>% 
+    filter(EXPECTED_TYPE_VISIT != 88)
   
-# extract visit dates that are default values to a separate dataframe - we will print these out later
-visit_date_defualt_value_anc <- mat_visit_type_errors_anc_out %>% 
-  filter(ERROR_MESSAGE == "visit date is default value")
-
-# filter out default value dates, add INFANTID column, and subset variable names
-mat_visit_type_errors_anc_out <- mat_visit_type_errors_anc_out %>% 
-  mutate(INFANTID = NA) %>% 
-  filter(!EXPECTED_TYPE_VISIT %in% c(13,14)) %>% 
-  select(FORM, MOMID, PREGID, INFANTID, PERIOD, VISITDATE, GA_US_WKS, GA_AT_VISIT_DAYS, GA_AT_VISIT_WKS,
-         REPORTED_TYPE_VISIT, EXPECTED_TYPE_VISIT, DIRECTION,ALL_REPORTED_VISITS,ERROR_MESSAGE)
-
-# rename columns
-names(mat_visit_type_errors_anc_out) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD", "VISITDATE",
-                                     "GESTAGE_AT_ENROLLMENT_WKS",  "GESTAGE_AT_VISIT_DAYS", "GESTAGE_AT_VISIT_WKS",
-                                     "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT","DIRECTION","ALL_REPORTED_VISITS",
-                                     "ERROR_MESSAGE")
+  # Generate query error messages with the following logic, where DIRECTION indicates if the reported visit is earlier or later than expected:
+  ## if direction = LATE: 
+  # QUERY if REPORTED_TYPE_VISIT is a duplicate (DUP_REPORTED_TYPE_VISIT == 1)
+  # QUERY if EXPECTED_TYPE_VISIT already exists (EXISTS_EXPECTED_TYPE_VISIT == 1)
+  ## if direction = EARLY: 
+  # QUERY if EXPECTED_TYPE_VISIT does NOT already exists (EXISTS_EXPECTED_TYPE_VISIT == 0)
+  mat_visit_type_errors_anc_out <- mat_visit_type_errors_anc %>% 
+    group_by(MOMID, PREGID, FORM) %>%
+    mutate(REPORTED_TYPE_VISIT = as.numeric(REPORTED_TYPE_VISIT)) %>% 
+    # generate variable if expected visit type already exists for the particpant
+    mutate(EXISTS_EXPECTED_TYPE_VISIT = ifelse(grepl(EXPECTED_TYPE_VISIT,ALL_REPORTED_VISITS), 1, 0)) %>% 
+    # generate error message variable
+    mutate(ERROR_MESSAGE = ifelse(EXPECTED_TYPE_VISIT == REPORTED_TYPE_VISIT, "no error",
+                                  ifelse(VISITDATE == ymd("2007-07-07") | VISITDATE== ymd("1907-07-07"), "visit date is default value",
+                                         ifelse(DIRECTION == "early" & EXISTS_EXPECTED_TYPE_VISIT == 0,"too early for reported visit type and expected visit type does not yet exist for this particpant for this form",
+                                                ifelse(DIRECTION == "late" &  DUP_REPORTED_TYPE_VISIT == 1, "reported visit type is a duplicate for this form", 
+                                                       ifelse(DIRECTION == "late" &  EXISTS_EXPECTED_TYPE_VISIT == 1,"expected visit type already exists for this particpant for this form",
+                                                              "no error"))))))%>% 
+    # if visit date == default value, replace DIRECTION with "invalid visit date"
+    mutate(DIRECTION = ifelse(ERROR_MESSAGE == "visit date is default value", "invalid visit date", DIRECTION)) %>% 
+    filter(ERROR_MESSAGE != "no error") # filter out non-queries
+  
+  
+  # extract visit dates that are default values to a separate dataframe - we will print these out later
+  visit_date_defualt_value_anc <- mat_visit_type_errors_anc_out %>% 
+    filter(ERROR_MESSAGE == "visit date is default value")
+  
+  # filter out default value dates, add INFANTID column, and subset variable names
+  mat_visit_type_errors_anc_out <- mat_visit_type_errors_anc_out %>% 
+    mutate(INFANTID = NA) %>% 
+    filter(!EXPECTED_TYPE_VISIT %in% c(13,14)) %>% 
+    select(FORM, MOMID, PREGID, INFANTID, PERIOD, VISITDATE, GA_US_WKS, GA_AT_VISIT_DAYS, GA_AT_VISIT_WKS,
+           REPORTED_TYPE_VISIT, EXPECTED_TYPE_VISIT, DIRECTION,ALL_REPORTED_VISITS,ERROR_MESSAGE)
+  
+  # rename columns
+  names(mat_visit_type_errors_anc_out) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD", "VISITDATE",
+                                           "GESTAGE_AT_ENROLLMENT_WKS",  "GESTAGE_AT_VISIT_DAYS", "GESTAGE_AT_VISIT_WKS",
+                                           "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT","DIRECTION","ALL_REPORTED_VISITS",
+                                           "ERROR_MESSAGE")
 }
+
+
+
 #*****************************************************************************
 ## PNC visits 
 #*****************************************************************************
 ## Data processing
-  # Extract all PNC visits 
-  # calculate GA at each visits for PNC visits 
-  # generate EXPECTED type visits 
+# Extract all PNC visits 
+# calculate GA at each visits for PNC visits 
+# generate EXPECTED type visits 
 pnc_visits = c(7,8,9,10,11, 12)
 maternal_all_pnc = maternal_all %>% filter(TYPE_VISIT %in% pnc_visits) %>% 
   select(-GA_US_DAYS, -GA_US_WKS, -US_OHOSTDAT) %>% 
@@ -401,107 +405,109 @@ out_dup_ids <- out_dup_ids %>% pull(MOMID)
 out_dup_ids <- maternal_all_pnc %>% filter(!(MOMID %in% out_dup_ids))
 
 ## Extracting Visit type errors: 
-  # generate new var if the reported visit is early or late compared to expected
-  # look for duplicates (using MOMID, PREGID, TYPE_VISIT) as keys 
-  # generate new variable with all reported visit types for each participant
+# generate new var if the reported visit is early or late compared to expected
+# look for duplicates (using MOMID, PREGID, TYPE_VISIT) as keys 
+# generate new variable with all reported visit types for each participant
 
 if (dim(maternal_all_pnc)[1] >= 1) {
   
-mat_visit_type_errors_pnc <- maternal_all_pnc %>% 
-  # determine if the window is ontime or late (if exp-obs is positive, then reported visit is late; if negative, the reported visit is early)
-  mutate(VISIT_TYPE_DIFF = EXPECTED_TYPE_VISIT-REPORTED_TYPE_VISIT) %>% 
-  mutate(DIRECTION = ifelse(VISIT_TYPE_DIFF>0, "late", 
-                            ifelse(VISIT_TYPE_DIFF<0, "early", NA))) %>% 
-  # generate new variable "N" that counts the number of times a unique MOMID and REPORTED_TYPE_VISIT exist in the data
-  group_by(MOMID,PREGID, FORM, REPORTED_TYPE_VISIT) %>% 
-  mutate(N = n()) %>% 
-  ungroup() %>% 
-  # if a REPORTED_TYPE_VISIT exists more than once for a participant (N>1) then we are considering this a duplicate
-  mutate(DUP_REPORTED_TYPE_VISIT = ifelse(N>1, 1, 0)) %>% 
-  group_by(MOMID, PREGID, FORM) %>% 
-  # generate a new variable "ALL_REPORTED_VISITS" that contains a string with all reported visit types for that participant
-  mutate(ALL_REPORTED_VISITS = paste(REPORTED_TYPE_VISIT, collapse = ",")) %>% 
-  ungroup() %>% 
-  filter(EXPECTED_TYPE_VISIT != 88)
+  mat_visit_type_errors_pnc <- maternal_all_pnc %>% 
+    # determine if the window is ontime or late (if exp-obs is positive, then reported visit is late; if negative, the reported visit is early)
+    mutate(VISIT_TYPE_DIFF = EXPECTED_TYPE_VISIT-REPORTED_TYPE_VISIT) %>% 
+    mutate(DIRECTION = ifelse(VISIT_TYPE_DIFF>0, "late", 
+                              ifelse(VISIT_TYPE_DIFF<0, "early", NA))) %>% 
+    # generate new variable "N" that counts the number of times a unique MOMID and REPORTED_TYPE_VISIT exist in the data
+    group_by(MOMID,PREGID, FORM, REPORTED_TYPE_VISIT) %>% 
+    mutate(N = n()) %>% 
+    ungroup() %>% 
+    # if a REPORTED_TYPE_VISIT exists more than once for a participant (N>1) then we are considering this a duplicate
+    mutate(DUP_REPORTED_TYPE_VISIT = ifelse(N>1, 1, 0)) %>% 
+    group_by(MOMID, PREGID, FORM) %>% 
+    # generate a new variable "ALL_REPORTED_VISITS" that contains a string with all reported visit types for that participant
+    mutate(ALL_REPORTED_VISITS = paste(REPORTED_TYPE_VISIT, collapse = ",")) %>% 
+    ungroup() %>% 
+    filter(EXPECTED_TYPE_VISIT != 88)
   
-# Generate query error messages with the following logic, where DIRECTION indicates if the reported visit is earlier or later than expected:
+  # Generate query error messages with the following logic, where DIRECTION indicates if the reported visit is earlier or later than expected:
   ## if direction = LATE: 
-    # QUERY if REPORTED_TYPE_VISIT is a duplicate (DUP_REPORTED_TYPE_VISIT == 1)
-    # QUERY if EXPECTED_TYPE_VISIT already exists (EXISTS_EXPECTED_TYPE_VISIT == 1)
+  # QUERY if REPORTED_TYPE_VISIT is a duplicate (DUP_REPORTED_TYPE_VISIT == 1)
+  # QUERY if EXPECTED_TYPE_VISIT already exists (EXISTS_EXPECTED_TYPE_VISIT == 1)
   ## if direction = EARLY: 
-    # QUERY if EXPECTED_TYPE_VISIT does NOT already exists (EXISTS_EXPECTED_TYPE_VISIT == 0)
-mat_visit_type_errors_pnc_out <- mat_visit_type_errors_pnc %>% 
-  group_by(MOMID, PREGID, FORM) %>% 
-  mutate(EXISTS_EXPECTED_TYPE_VISIT = ifelse(grepl(EXPECTED_TYPE_VISIT,ALL_REPORTED_VISITS), 1, 0)) %>% 
-  mutate(ERROR_MESSAGE = ifelse(EXPECTED_TYPE_VISIT == REPORTED_TYPE_VISIT, "no error",
-                                ifelse(VISITDATE == ymd("2007-07-07") | VISITDATE== ymd("1907-07-07"), "visit date is default value",
-                                    ifelse(DIRECTION == "early" & EXISTS_EXPECTED_TYPE_VISIT == 0,"too early for reported visit type and expected visit type does not yet exist for this particpant for this form",
-                                       ifelse(DIRECTION == "late" &  DUP_REPORTED_TYPE_VISIT == 1, "reported visit type is a duplicate for this form", 
-                                              ifelse(DIRECTION == "late" &  EXISTS_EXPECTED_TYPE_VISIT == 1,"expected visit type already exists for this particpant for this form",
-                                                     "no error")))))) %>% 
-  # if visit date == default value, replace DIRECTION with "invalid visit date"
-  mutate(DIRECTION = ifelse(ERROR_MESSAGE == "visit date is default value", "invalid visit date", DIRECTION)) %>% 
-  # remove non-queries
-  filter(ERROR_MESSAGE != "no error") 
-
-# extract visit dates that are default values to a separate dataframe - we will print these out later
-visit_date_defualt_value_pnc <- mat_visit_type_errors_pnc_out %>% 
-  filter(ERROR_MESSAGE == "visit date is default value")
-
-# filter out default value dates, add INFANTID column, and subset variable names
-mat_visit_type_errors_pnc_out <- mat_visit_type_errors_pnc_out %>% 
-  filter(ERROR_MESSAGE != "visit date is default value",
-         !EXPECTED_TYPE_VISIT %in% c(13,14)) %>% 
-  mutate(INFANTID = NA) %>% 
-  select(FORM, MOMID, PREGID, INFANTID, PERIOD, VISITDATE, DAYS_PNC, WKS_PNC,
-         REPORTED_TYPE_VISIT, EXPECTED_TYPE_VISIT, DIRECTION, ALL_REPORTED_VISITS, ERROR_MESSAGE)
-
-# rename columns 
-names(mat_visit_type_errors_pnc_out) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD", "VISITDATE",
+  # QUERY if EXPECTED_TYPE_VISIT does NOT already exists (EXISTS_EXPECTED_TYPE_VISIT == 0)
+  
+  mat_visit_type_errors_pnc_out <- mat_visit_type_errors_pnc %>% 
+    group_by(MOMID, PREGID, FORM) %>% 
+    mutate(EXISTS_EXPECTED_TYPE_VISIT = ifelse(grepl(EXPECTED_TYPE_VISIT, ALL_REPORTED_VISITS), 1, 0)) %>% 
+    mutate(ERROR_MESSAGE = ifelse(EXPECTED_TYPE_VISIT == REPORTED_TYPE_VISIT, "no error",
+                                  ifelse(VISITDATE == ymd("2007-07-07") | VISITDATE== ymd("1907-07-07"), "visit date is default value",
+                                         ifelse(DIRECTION == "early" & EXISTS_EXPECTED_TYPE_VISIT == 0,"too early for reported visit type and expected visit type does not yet exist for this particpant for this form",
+                                                ifelse(DIRECTION == "late" &  DUP_REPORTED_TYPE_VISIT == 1, "reported visit type is a duplicate for this form", 
+                                                       ifelse(DIRECTION == "late" &  EXISTS_EXPECTED_TYPE_VISIT == 1,"expected visit type already exists for this particpant for this form",
+                                                              "no error")))))) %>% 
+    # if visit date == default value, replace DIRECTION with "invalid visit date"
+    mutate(DIRECTION = ifelse(ERROR_MESSAGE == "visit date is default value", "invalid visit date", DIRECTION)) %>% 
+    # remove non-queries
+    filter(ERROR_MESSAGE != "no error") 
+  
+  # extract visit dates that are default values to a separate dataframe - we will print these out later
+  visit_date_defualt_value_pnc <- mat_visit_type_errors_pnc_out %>% 
+    filter(ERROR_MESSAGE == "visit date is default value")
+  
+  # filter out default value dates, add INFANTID column, and subset variable names
+  mat_visit_type_errors_pnc_out <- mat_visit_type_errors_pnc_out %>% 
+    filter(ERROR_MESSAGE != "visit date is default value",
+           !EXPECTED_TYPE_VISIT %in% c(13,14)) %>% 
+    mutate(INFANTID = NA) %>% 
+    select(FORM, MOMID, PREGID, INFANTID, PERIOD, VISITDATE, DAYS_PNC, WKS_PNC,
+           REPORTED_TYPE_VISIT, EXPECTED_TYPE_VISIT, DIRECTION, ALL_REPORTED_VISITS, ERROR_MESSAGE)
+  
+  # rename columns 
+  names(mat_visit_type_errors_pnc_out) = c("FORM", "MOMID", "PREGID","INFANTID", "PERIOD", "VISITDATE",
                                            "GESTAGE_AT_VISIT_DAYS", "GESTAGE_AT_VISIT_WKS",
-                                         "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT","DIRECTION",
-                                         "ALL_REPORTED_VISITS", "ERROR_MESSAGE")
-
-
+                                           "REPORTED_TYPE_VISIT", "EXPECTED_TYPE_VISIT","DIRECTION",
+                                           "ALL_REPORTED_VISITS", "ERROR_MESSAGE")
+  
+  
 }
+
 #*****************************************************************************
 ## Format to match query template
 #*****************************************************************************
 if (exists("mat_visit_type_errors_anc_out")== TRUE){
-# extract variables included in query template
-maternal_all_anc_query <- mat_visit_type_errors_anc_out %>% 
-  rename("TYPE_VISIT" = "REPORTED_TYPE_VISIT") %>% 
-  mutate(SCRNID = NA,
-         INFANTID = NA, 
-         VARIABLENAME = "TYPE_VISIT", 
-         VARIABLEVALUE = TYPE_VISIT, 
-         FIELD_TYPE = "Number", 
-         EDIT_TYPE = "Invalid Visit Type") %>% 
-  select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT,VISITDATE, FORM, VARIABLENAME, VARIABLEVALUE,FIELD_TYPE, EDIT_TYPE) 
-
-
-
-# update naming 
-names(maternal_all_anc_query) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name",  "Variable Value","FieldType", "EditType")
+  # extract variables included in query template
+  maternal_all_anc_query <- mat_visit_type_errors_anc_out %>% 
+    rename("TYPE_VISIT" = "REPORTED_TYPE_VISIT") %>% 
+    mutate(SCRNID = NA,
+           INFANTID = NA, 
+           VARIABLENAME = "TYPE_VISIT", 
+           VARIABLEVALUE = TYPE_VISIT, 
+           FIELD_TYPE = "Number", 
+           EDIT_TYPE = "Invalid Visit Type") %>% 
+    select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT,VISITDATE, FORM, VARIABLENAME, VARIABLEVALUE,FIELD_TYPE, EDIT_TYPE) 
+  
+  
+  
+  # update naming 
+  names(maternal_all_anc_query) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name",  "Variable Value","FieldType", "EditType")
 }
 
 if (exists("mat_visit_type_errors_pnc_out") == TRUE) {
   
-# extract variables included in query template
-maternal_all_pnc_query <- mat_visit_type_errors_pnc_out %>% 
-  rename("TYPE_VISIT" = "REPORTED_TYPE_VISIT") %>% 
-  mutate(SCRNID = NA,
-         INFANTID = NA, 
-         TYPE_VISIT = TYPE_VISIT,
-         VARIABLENAME = "TYPE_VISIT", 
-         VARIABLEVALUE = TYPE_VISIT, 
-         FIELD_TYPE = "Number", 
-         EDIT_TYPE = "Invalid Visit Type") %>% 
-  select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VISITDATE, FORM, VARIABLENAME, VARIABLEVALUE,FIELD_TYPE, EDIT_TYPE) 
-
-# update naming 
-names(maternal_all_pnc_query) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name",  "Variable Value","FieldType", "EditType")
-
+  # extract variables included in query template
+  maternal_all_pnc_query <- mat_visit_type_errors_pnc_out %>% 
+    rename("TYPE_VISIT" = "REPORTED_TYPE_VISIT") %>% 
+    mutate(SCRNID = NA,
+           INFANTID = NA, 
+           TYPE_VISIT = TYPE_VISIT,
+           VARIABLENAME = "TYPE_VISIT", 
+           VARIABLEVALUE = TYPE_VISIT, 
+           FIELD_TYPE = "Number", 
+           EDIT_TYPE = "Invalid Visit Type") %>% 
+    select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VISITDATE, FORM, VARIABLENAME, VARIABLEVALUE,FIELD_TYPE, EDIT_TYPE) 
+  
+  # update naming 
+  names(maternal_all_pnc_query) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name",  "Variable Value","FieldType", "EditType")
+  
 }
 
 ## merge anc and pnc visit queries together
@@ -526,7 +532,7 @@ if (exists("mnh22")==TRUE){
     pull(MomID)
 }
 
-if (dim(MaternalVisitType_query_to_export)[1] > 1){
+if (dim(MaternalVisitType_query_to_export)[1] > 0){
   
   if (length(m22_ids_to_remove) >1){
     ## remove all IDs that have a visit type protocol deviation
@@ -535,9 +541,9 @@ if (dim(MaternalVisitType_query_to_export)[1] > 1){
   
   ## add additional columns 
   MaternalVisitType_query_to_export = cbind(QueryID = NA, 
-                                  UploadDate = UploadDate, 
-                                  MaternalVisitType_query_to_export, 
-                                  DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+                                            UploadDate = UploadDate, 
+                                            MaternalVisitType_query_to_export, 
+                                            DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   
   # combine form/edit type var 
   MaternalVisitType_query_to_export$Form_Edit_Type <- paste(MaternalVisitType_query_to_export$Form,"_",MaternalVisitType_query_to_export$EditType)
@@ -560,26 +566,26 @@ if (dim(MaternalVisitType_query_to_export)[1] > 1){
 #*****************************************************************************
 # ANC (using "maternal_all_anc" data frame generate above)
 if (exists("maternal_all_anc") == TRUE){
-duplicate_visit_dates_anc <- maternal_all_anc %>% 
-  group_by(MOMID, PREGID, VISITDATE, FORM) %>% 
-  filter(VISITDATE != ymd("2007-07-07"),
-         VISITDATE != ymd("1907-07-07")) %>%
-  mutate(N = n()) %>% 
-  filter(N>1) %>% 
-  arrange(desc(MOMID), desc(VISITDATE), desc(FORM))
+  duplicate_visit_dates_anc <- maternal_all_anc %>% 
+    group_by(MOMID, PREGID, VISITDATE, FORM) %>% 
+    filter(VISITDATE != ymd("2007-07-07"),
+           VISITDATE != ymd("1907-07-07")) %>%
+    mutate(N = n()) %>% 
+    filter(N>1) %>% 
+    arrange(desc(MOMID), desc(VISITDATE), desc(FORM))
 }
 
 # PNC (using "maternal_all_pnc" data frame generate above)
 if (exists("maternal_all_pnc") == TRUE){
-
-duplicate_visit_dates_pnc <- maternal_all_pnc %>% 
-  group_by(MOMID, PREGID, VISITDATE, FORM) %>% 
-  filter(VISITDATE != ymd("2007-07-07"),
-         VISITDATE != ymd("1907-07-07")) %>%
-  mutate(N = n()) %>% 
-  filter(N>1) %>% 
-  arrange(desc(MOMID), desc(VISITDATE), desc(FORM))
-
+  
+  duplicate_visit_dates_pnc <- maternal_all_pnc %>% 
+    group_by(MOMID, PREGID, VISITDATE, FORM) %>% 
+    filter(VISITDATE != ymd("2007-07-07"),
+           VISITDATE != ymd("1907-07-07")) %>%
+    mutate(N = n()) %>% 
+    filter(N>1) %>% 
+    arrange(desc(MOMID), desc(VISITDATE), desc(FORM))
+  
 }
 
 if (exists("duplicate_visit_dates_anc")== TRUE & exists("duplicate_visit_dates_pnc")== TRUE ){
@@ -599,7 +605,7 @@ if (exists("duplicate_visit_dates_anc")== TRUE & exists("duplicate_visit_dates_p
 if (exists("duplicate_visit_dates_to_export")) {
   
   # extract variables included in query template
-Duplicate_Visit_Dates_query_to_export <- duplicate_visit_dates_to_export %>% 
+  Duplicate_Visit_Dates_query_to_export <- duplicate_visit_dates_to_export %>% 
     rename("TYPE_VISIT" = "REPORTED_TYPE_VISIT") %>% 
     mutate(SCRNID = NA,
            INFANTID = NA, 
@@ -609,17 +615,17 @@ Duplicate_Visit_Dates_query_to_export <- duplicate_visit_dates_to_export %>%
            FIELD_TYPE = "Number", 
            EDIT_TYPE = "Duplicate Visit Type") %>% 
     select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VISITDATE, FORM, VARIABLENAME, VARIABLEVALUE,FIELD_TYPE, EDIT_TYPE) 
-
-# "Two different visit types exist on the same visit date"
   
-# update naming 
+  # "Two different visit types exist on the same visit date"
+  
+  # update naming 
   names(Duplicate_Visit_Dates_query_to_export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name",  "Variable Value","FieldType", "EditType")
   
   ## add additional columns 
   Duplicate_Visit_Dates_query_to_export = cbind(QueryID = NA, 
-                                  UploadDate = UploadDate, 
-                                  Duplicate_Visit_Dates_query_to_export, 
-                                  DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+                                                UploadDate = UploadDate, 
+                                                Duplicate_Visit_Dates_query_to_export, 
+                                                DateEditReported = format(Sys.time(), "%Y-%m-%d"))
   
   # combine form/edit type var 
   Duplicate_Visit_Dates_query_to_export$Form_Edit_Type <- paste(Duplicate_Visit_Dates_query_to_export$Form,"_",Duplicate_Visit_Dates_query_to_export$EditType)
@@ -633,6 +639,11 @@ Duplicate_Visit_Dates_query_to_export <- duplicate_visit_dates_to_export %>%
   save(Duplicate_Visit_Dates_query, file = paste0(maindir,"/DuplicateVisitDates_query.rda"))
   
 }
+
+# dim(visit_type_query_extra_tab)
+# dim(MaternalVisitType_query_to_export)
+# dim(duplicate_visit_dates_anc)
+# dim(Duplicate_Visit_Dates_query_to_export)
 
 #*****************************************************************************
 ## generate new tab in query report to store more details  
@@ -656,13 +667,22 @@ visit_type_query_extra_tab <- maternal_visit_types_full # will eventually add in
 
 if (dim(visit_type_query_extra_tab)[1] >0){
   
+  names(visit_type_query_extra_tab) = c("Form", "MomID", "PregID", "InfantID", "Period", "VisitDate", "Gestage_At_Enrollment_Wks", 
+                                        "Gestage_At_Visit_Days", "Gestage_At_Visit_Wks", "Reported_Type_Visit", "Expected_Type_Visit", 
+                                        "Direction", "All_Reported_Visits", "Error_Message")
+  
+  ## assign queryid -- edit type id for invalid visit types is 06 
+  visit_type_query_extra_tab <- visit_type_query_extra_tab %>% 
+    mutate(QueryID = paste0(Form, "_", VisitDate, "_",MomID, "_","TYPE_VISIT", "_", Reported_Type_Visit, "_", "06"))
+  
   
   if (length(m22_ids_to_remove) >0){
     ## remove all IDs that have a visit type protocol deviation
-    visit_type_query_extra_tab <- visit_type_query_extra_tab %>% filter(!MOMID %in% m22_ids_to_remove)
+    visit_type_query_extra_tab <- visit_type_query_extra_tab %>% filter(!MomID %in% m22_ids_to_remove)
   }
   
   ## export 
   save(visit_type_query_extra_tab, file = paste0(maindir,"/visit_type_extra_tab.rda"))
   
 }
+

@@ -1,6 +1,6 @@
 # PRISMA Data Query Codes
 This repository contains all PRISMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 16 December 2023*
+#### :pushpin: *Last updated on 26 February 2024*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
@@ -61,7 +61,14 @@ This repository contains all PRISMA codes that will be used internally and by si
    - function: 
      - Confirm all enrolled particpants meet our enrollment criteria as in MNH02.
 
-**6\. `DataExport_Dataquery.R`** 
+**6\. `07_EddGA_Dataquery.R`** 
+   - input: Wide data (all raw .csv files) and Long data
+   - output:
+     - One .rda file with all MOMIDs that have discrepancies between ultrasound reported values and LMP
+   - function: 
+     - Identifies the differences between Ultrasound reported values and LMP (last menstral period) reported values.
+
+**7\. `DataExport_Dataquery.R`** 
    - input: All .rds files 
    - output:
      - Excel sheet with a full query report 

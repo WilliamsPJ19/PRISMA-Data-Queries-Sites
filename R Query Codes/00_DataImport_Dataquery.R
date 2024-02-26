@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #00 -- Import all raw .csv files from each upload 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 20 October  2023
+#* Last updated: 26 February 2024
 
 
 #*Input: Raw Data 
@@ -82,55 +82,60 @@ names <- as.vector(c("mnh00", "mnh01", "mnh02", "mnh03", "mnh04", "mnh05", "mnh0
 if (exists("mnh00")==TRUE){
   
   mnh00_long <- mnh00 %>% bind_cols(INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT) %>% 
+    mutate(VisitDate = SCRN_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "SCRN_OBSSTDAT") %>%  mutate(form = "MNH00")
+    mutate(form = "MNH00")
   
 }
 
 if (exists("mnh01")==TRUE){
   
   mnh01_long <- mnh01 %>% bind_cols(INFANTID=NA) %>% 
+    mutate(VisitDate = US_OHOSTDAT) %>% 
     setcolfirst(SCRNID, MOMID, PREGID, INFANTID) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, US_OHOSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "US_OHOSTDAT") %>%  mutate(form = "MNH01")
+    mutate(form = "MNH01")
   
 }
 
 if (exists("mnh02")==TRUE){
   
-  mnh02_long <- mnh02 %>% bind_cols(INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT) %>% 
+  mnh02_long <- mnh02 %>% bind_cols(INFANTID=NA) %>%
+    mutate(VisitDate = SCRN_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, SCRN_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "SCRN_OBSSTDAT") %>%  mutate(form = "MNH02")
+    mutate(form = "MNH02")
   
 }
 
 if (exists("mnh03")==TRUE){
   
   mnh03_long <- mnh03 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, SD_OBSSTDAT) %>% 
+    mutate(VisitDate = SD_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, SD_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "SD_OBSSTDAT") %>%  mutate(form = "MNH03")
+    mutate(form = "MNH03")
   
 }
 
 if (exists("mnh04")==TRUE){
   
   mnh04_long <- mnh04 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, ANC_OBSSTDAT) %>% 
+    mutate(VisitDate = ANC_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, ANC_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "ANC_OBSSTDAT") %>%  mutate(form = "MNH04")
+    mutate(form = "MNH04")
   
 }
 
@@ -138,33 +143,36 @@ if (exists("mnh04")==TRUE){
 if (exists("mnh05")==TRUE){
   
   mnh05_long <- mnh05 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, ANT_PEDAT) %>% 
+    mutate(VisitDate = ANT_PEDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, ANT_PEDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "ANT_PEDAT") %>%  mutate(form = "MNH05")
+    mutate(form = "MNH05")
 }
 
 
 if (exists("mnh06")==TRUE){
   
-  mnh06_long <- mnh06 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, DIAG_VSDAT) %>% 
+  mnh06_long <- mnh06 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>%
+    mutate(VisitDate = DIAG_VSDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, DIAG_VSDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "DIAG_VSDAT") %>%  mutate(form = "MNH06")
+    mutate(form = "MNH06")
   
 }
 
 if (exists("mnh07")==TRUE){
   
   mnh07_long <- mnh07 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, MAT_SPEC_COLLECT_LOC) %>% 
+    mutate(VisitDate = MAT_SPEC_COLLECT_DAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, MAT_SPEC_COLLECT_LOC), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "MAT_SPEC_COLLECT_LOC") %>%  mutate(form = "MNH07")
+    mutate(form = "MNH07")
   
 }
 
@@ -172,11 +180,12 @@ if (exists("mnh07")==TRUE){
 if (exists("mnh08")==TRUE){
   
   mnh08_long <- mnh08 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, LBSTDAT) %>% 
+    mutate(VisitDate = LBSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, LBSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "LBSTDAT") %>%  mutate(form = "MNH08")
+    mutate(form = "MNH08")
   
 }
 
@@ -208,65 +217,71 @@ if (exists("mnh09")==TRUE){
   mnh09_update <- mnh09_update %>% select(-any_of(infantids_to_remove))
   
   mnh09_long <- mnh09_update %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, MAT_LD_OHOSTDAT) %>% 
+    mutate(VisitDate = MAT_LD_OHOSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, MAT_LD_OHOSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "MAT_LD_OHOSTDAT") %>%  mutate(form = "MNH09")
+    mutate(form = "MNH09")
   
 }
 
 if (exists("mnh10")==TRUE){
   
   mnh10_long <- mnh10 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT) %>% 
+    mutate(VisitDate = VISIT_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISIT_OBSSTDAT") %>%  mutate(form = "MNH10")
+    mutate(form = "MNH10")
   
 }
 
 if (exists("mnh11")==TRUE){
   
   mnh11_long <- mnh11 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT) %>% 
+    mutate(VisitDate = VISIT_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISIT_OBSSTDAT") %>%  mutate(form = "MNH11")
+    mutate(form = "MNH11")
   
 }
 
 if (exists("mnh12")==TRUE){
   
   mnh12_long <- mnh12 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT) %>% 
+    mutate(VisitDate = VISIT_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISIT_OBSSTDAT") %>%  mutate(form = "MNH12")
+    mutate(form = "MNH12")
   
 }
 if(exists("mnh13")==TRUE){
   
   mnh13_long <- mnh13 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT) %>% 
+    mutate(VisitDate = VISIT_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISIT_OBSSTDAT") %>%  mutate(form = "MNH13")
+    mutate(form = "MNH13")
   
 }
 
 if (exists("mnh14")==TRUE){
   
   mnh14_long <- mnh14 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT) %>% 
+    mutate(VisitDate = VISIT_OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISIT_OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISIT_OBSSTDAT") %>%  mutate(form = "MNH14")
+    mutate(form = "MNH14")
   
   
 }
@@ -274,99 +289,108 @@ if (exists("mnh14")==TRUE){
 if (exists("mnh15")==TRUE){
   
   mnh15_long <- mnh15 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT) %>% 
+    mutate(VisitDate = OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "OBSSTDAT") %>%  mutate(form = "MNH15")
+    mutate(form = "MNH15")
   
 }
 
 if (exists("mnh16")==TRUE){
   
-  mnh16_long <- mnh16 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISDAT) %>% 
+  mnh16_long <- mnh16 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>%
+    mutate(VisitDate = VISDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISDAT") %>%  mutate(form = "MNH16")
+    mutate(form = "MNH16")
   
 }
 
 if (exists("mnh17")==TRUE){
   
   mnh17_long <- mnh17 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISDAT) %>% 
+    mutate(VisitDate = VISDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISDAT") %>%  mutate(form = "MNH17")
+    mutate(form = "MNH17")
   
   
 }
 
 if (exists("mnh18")==TRUE){
   
-  mnh18_long <- mnh18 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VISDAT) %>% 
+  mnh18_long <- mnh18 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>%
+    mutate(VisitDate = VISDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VISDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "VISDAT") %>%  mutate(form = "MNH18")
+    mutate(form = "MNH18")
   
 }
 if (exists("mnh19")==TRUE){
   
   mnh19_long <- mnh19 %>% bind_cols(SCRNID = NA, INFANTID=NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT) %>% 
+    mutate(VisitDate = OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "OBSSTDAT") %>%  mutate(form = "MNH19")
+    mutate(form = "MNH19")
   
 }
 if (exists("mnh20")==TRUE){
   
-  mnh20_long <- mnh20 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT) %>% 
+  mnh20_long <- mnh20 %>% bind_cols(SCRNID = NA) %>%
+    mutate(VisitDate = OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "OBSSTDAT") %>%  mutate(form = "MNH20")
+    mutate(form = "MNH20")
   
 }
 
 if (exists("mnh21")==TRUE){
   
   mnh21_long <- mnh21 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, AESTDAT) %>% 
+    mutate(VisitDate = AESTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, AESTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "AESTDAT") %>%  mutate(form = "MNH21")
+    mutate(form = "MNH21")
   
   
 }
 
 if (exists("mnh22")==TRUE){
   
-  mnh22_long <- mnh22 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, DVSTDAT) %>% 
+  mnh22_long <- mnh22 %>% bind_cols(SCRNID = NA) %>%
+    mutate(VisitDate = DVSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, DVSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "DVSTDAT") %>%  mutate(form = "MNH22")
+    mutate(form = "MNH22")
   
 }
 
 if (exists("mnh23")==TRUE){
   
   mnh23_long <- mnh23 %>% bind_cols(SCRNID = NA, INFANTID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, CLOSE_DSSTDAT) %>% 
+    mutate(VisitDate = CLOSE_DSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, CLOSE_DSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "CLOSE_DSSTDAT") %>%  mutate(form = "MNH23")
+    mutate(form = "MNH23")
   
 }
 
@@ -374,36 +398,38 @@ if (exists("mnh23")==TRUE){
 if (exists("mnh24")==TRUE){
   
   mnh24_long <- mnh24 %>% bind_cols(SCRNID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, CLOSE_DSSTDAT) %>% 
+    mutate(VisitDate = CLOSE_DSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, CLOSE_DSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "CLOSE_DSSTDAT") %>%  mutate(form = "MNH24")
+    mutate(form = "MNH24")
   
 }
 
 if (exists("mnh25")==TRUE){
   
   mnh25_long <- mnh25 %>% bind_cols(SCRNID = NA, INFANTID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT) %>% 
+    mutate(VisitDate = OBSSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, OBSSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "OBSSTDAT") %>%  mutate(form = "MNH25")
+    mutate(form = "MNH25")
   
 }
 
 if (exists("mnh26")==TRUE){
   
-  mnh26_long <- mnh26 %>% bind_cols(SCRNID = NA, INFANTID = NA) %>% 
-    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, FTGE_OBSTDAT) %>% 
+  mnh26_long <- mnh26 %>% bind_cols(SCRNID = NA, INFANTID = NA) %>%
+    mutate(VisitDate = FTGE_OBSTDAT) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID, VisitDate) %>% 
     mutate_all(as.character) %>% 
-    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, FTGE_OBSTDAT), 
+    pivot_longer(cols = -c(SCRNID, MOMID, PREGID, INFANTID, VisitDate), 
                  names_to = "varname", values_to = "response") %>% 
-    rename("VisitDate" = "FTGE_OBSTDAT") %>%  mutate(form = "MNH26")
+    mutate(form = "MNH26")
   
 }
-
 
 long_list = mget(ls(pattern = "*_long"))                              # make list of all of long forms 
 long_list_names = as.vector(names(long_list))                         # get form names that are included in the long format 

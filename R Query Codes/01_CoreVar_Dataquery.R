@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #1 -- CHECK FOR CORE VARIABLE NAMES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 20 October  2023
+#* Last updated: 26 February 2024
 
 #*Input: Wide data (all raw .csv files)
 #*Function: check to make sure all variables exist in the data and match data dictionary formatting 
@@ -1044,10 +1044,17 @@ if (exists("mnh24")==TRUE){
 #*****************************************************************************
 #*MNH25
 #*****************************************************************************
+## extra coding to work around 2 india sites 
+if (site == "India-CMC" | site == "India-SAS"){
+  site_mnh25 = "India"
+} else {
+  site_mnh25 = site
+}
+
 if (exists("mnh25")==TRUE){
   
   #*get variable list for MNH25 from data dictionary 
-  VarNames_form <- variable_names %>%  filter(Form == paste0("MNH25_", site))
+  VarNames_form <- variable_names %>%  filter(Form == paste0("MNH25_", site_mnh25))
   
   VarNames_m25 = as.vector(VarNames_form$VarName)
   
@@ -1193,7 +1200,23 @@ if (dim(VarNamesExtra)[1] > 1){
 }
 
 # merge together 
-missing_query <- rbind(VarNamesMissing, VarNamesExtra)
+if (dim(VarNamesMissing)[1] >= 1 & dim(VarNamesExtra)[1] >= 1){
+  
+  missing_query <- bind_rows(VarNamesMissing, VarNamesExtra)
+  
+} else if (dim(VarNamesMissing)[1] >= 1 & dim(VarNamesExtra)[1] < 1){
+  
+  missing_query <- VarNamesMissing
+  
+} else if (dim(VarNamesMissing)[1] < 1 & dim(VarNamesExtra)[1] >=1) {
+  
+  missing_query <- VarNamesExtra
+}
 
-## export variable checking query 
-save(missing_query, file = paste0(maindir, "/queries/missing_query.rda"))
+if (exists("missing_query")==TRUE) {
+  missing_query <- missing_query %>% filter(!is.na(`Form`))
+  
+  ## export variable checking query 
+  save(missing_query, file = paste0(maindir, "/queries/missing_query.rda"))
+  
+}
