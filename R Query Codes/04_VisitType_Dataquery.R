@@ -149,8 +149,6 @@ mnh06_sub <- mnh06 %>% select(MOMID, PREGID, TYPE_VISIT, DIAG_VSDAT) %>%
   rename("VISITDATE" = "DIAG_VSDAT") %>% 
   mutate(FORM = "MNH06")
 
-mnh07_sub <- read_excel("~/mnh07_sub.xlsx")
-
 mnh07_sub <- mnh07 %>% select(MOMID, PREGID, TYPE_VISIT, MAT_SPEC_COLLECT_DAT) %>%
   mutate(MAT_SPEC_COLLECT_DAT = ymd(parse_date_time(MAT_SPEC_COLLECT_DAT, order = c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))) %>% 
   rename("VISITDATE" = "MAT_SPEC_COLLECT_DAT") %>% 
