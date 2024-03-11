@@ -59,7 +59,6 @@ report <- rbindlist(lapply(mget(ls(pattern = "*query$")), function(x) {
   x[] <- lapply(x,type.convert, as.is = TRUE); x}),fill=TRUE)
 
 
-
 #*****************************************************************************
 #* Generating summary tables -- High Frequency Tab
 # here we can remove any variables that pulled a lot of queries 
@@ -76,111 +75,82 @@ report = add_column(report, VarFormEdit=paste(report$Form, "_", report$`Variable
 ## add in new columns for RemoveEdit variable and notes  
 report = add_column(report, RemoveEdit = "", Notes = "") 
 
-# extract non-out of range queries that are pulled >100 times in the query report 
-high_freq_to_exclude <- report %>% 
+# extract out of range queries that are pulled >40 times in the query report - we are pulling by variable value!!
+high_freq_to_exclude_outrange <- report %>%
+  filter(EditType %in% c("Out of Range", "Invalid Response Option")) %>%
+  group_by(`Variable Value`, VarFormEdit) %>% 
+  count(name = "Frequency") %>% 
+  filter(Frequency > 40) 
+
+# extract non-out of range queries that are pulled >100 times in the query report
+high_freq_to_exclude <- report %>%
+  filter(!EditType %in% c("Out of Range", "Invalid Response Option")) %>%
   group_by(VarFormEdit) %>% 
-  count(name ="Frequency") %>% 
-  filter(Frequency > 100) %>%     ## let's say we want to remove all instances that happened >100 times 
-  pull(VarFormEdit) ## get variable names to exclude 
+  count(name = "Frequency") %>% 
+  filter(Frequency > 100) 
 
-# extract out of range queries that are pulled >100 times in the query report 
-high_freq_to_exclude_outrange <- report %>% filter(EditType == "Out of Range" | EditType == "Invalid Response Option" ) %>%
-  group_by(VarFormEdit) %>%
-  count(name = "Frequency") %>%
-  filter(Frequency > 100) %>%  ## Remove instances that occurred more than 100 times
-  pull(VarFormEdit)  ## Get variable names to exclude
-
-## remove these high frequency variables from the report 
-report_query <- report %>% filter(!(VarFormEdit %in% high_freq_to_exclude))
-
-table_freq_FmNmEd <- report_query %>% 
-  group_by(Form_Edit_Type) %>% 
-  count(name ="Frequency") %>% 
-  rename("Form and Edit Type" = "Form_Edit_Type") %>% 
-  filter(Frequency < 100)
+## remove these high frequency variables from the report (since there are two dataframes i.e out_range and non-out of range)
+report_query <- report %>% filter(!(VarFormEdit %in% high_freq_to_exclude$VarFormEdit))
+report_query <- report_query %>% filter(!(VarFormEdit %in% high_freq_to_exclude_outrange$VarFormEdit &
+                                            `Variable Value` %in% high_freq_to_exclude_outrange$`Variable Value`))
 
 ## filter out high frequency queries from the report 
-report_high_freq <- report %>% filter(!(VarFormEdit %in% high_freq_to_exclude_outrange)) %>% 
-  filter((VarFormEdit %in% high_freq_to_exclude)) #exclude out of range variables, since the high frequency tab was created
+high_freq_outrange <- report %>% filter((VarFormEdit %in% high_freq_to_exclude_outrange$VarFormEdit &
+                                           `Variable Value` %in% high_freq_to_exclude_outrange$`Variable Value`)) %>%
+  group_by(`Variable Value`, VarFormEdit, Form, `Variable Name`, EditType ) %>% 
+  count(name = "Frequency") %>% 
+  filter(Frequency > 40) %>% 
+  mutate_all(as.character)
 
-######## NON- OUT OF RANGE QUERIES ######## 
-## get frequency table that shows the number of queries for each form-edit type in the format of the high freq table
+high_freq  <- report %>%  filter(VarFormEdit %in% high_freq_to_exclude$VarFormEdit ) %>%
+  group_by(VarFormEdit, Form, `Variable Name`, EditType ) %>% 
+  count(name = "Frequency") %>% 
+  filter(Frequency > 100)  %>% 
+  mutate (`Variable Value` = NA )%>% 
+  mutate_all(as.character)
+
+
+report_high_freq_bind <- bind_rows(high_freq_outrange, high_freq)
+
+#to add the min, max, default value, etc.. from data dictionary into high frequency tab
+report_high_freq <- left_join(report_high_freq_bind, varNames_sheet, by = c("Form", "Variable Name"))
+
+## Add recommendations
 table_high_freq <- report_high_freq %>% 
   mutate(
-    EditTypeID = case_when(
-      EditType == "Duplicate ID" ~ "01", 
-      EditType == "Extra Variable" ~ "02", 
-      EditType == "Missing Variable" ~ "03", 
-      EditType == "MomID Missing Enrollment Form" ~ "04", 
-      EditType == "Visit Type Error" ~ "06",
-      EditType == "InfantID Missing Delivery Form" ~ "07", 
-      EditType == "MomID Ineligible" ~ "08",
-      EditType == "Invalid Response Option" ~ "09",
-      startsWith (EditType, "Missing") ~ "10",
-      EditType == "Missing US EDD at Enrolment" ~ "11",
-      str_detect(EditType, "EDD") ~ "12",
-      startsWith (EditType, "Visit Type") ~  "13"
-    ),
     Recommendations = case_when(
-      EditTypeID %in% c("02", "03") ~ "Consult the Data Dictionary to Harmonize Variable Name",
-      EditTypeID %in% c("01") ~ "Remove all duplicate data points in dataset",
-      EditTypeID %in% c("04") ~ "Confirm that all MOM have an enrollment form",
-      EditTypeID %in% c("06") ~ "Correct all discrepancies in Visit_Type",
-      EditTypeID %in% c("07") ~ "Include missing forms for infants",
-      EditTypeID %in% c("08") ~ "Confirm that all MOMs are eligible for study",
-      EditTypeID %in% c("09") ~ "Consult the Data Dictionary and confirm response options",
-      EditTypeID %in% c("10") ~ "Provide the specific missing form for the specified visit",
-      EditTypeID %in% c("12") ~ "Confirm the that the Estimated Due Date has accurate data",
-      EditTypeID %in% c("11") ~ "Ensure that Estimated Due Date at Ultrasound is Not Missing",
-      EditTypeID %in% c("13") ~ "Check the Invalid Visit Type Tab for specific data error"
-    )
-  ) %>% 
-  select(-EditTypeID) %>% 
-  group_by(EditType, Form_Edit_Type, Recommendations) %>% 
-  count(name = "Frequency") %>% 
-  mutate (form = "NA", response = "*", min = "*", max = "*",DefaultValue = "*", response_range = "*") %>% 
-  rename("Form and Edit Type" = "Form_Edit_Type")
+      EditType == "Extra Variable" ~ "Check variable naming and spelling or delete extra variable",
+      EditType == "Missing Variable" ~ "Check variable naming and spelling or provide missing variable",
+      EditType == "Duplicate ID" ~ "Investigate and resolve duplicated MomIDs for data integrity",
+      EditType == "MomID Missing Enrollment Form" ~ "Ensure all ANC/PNC forms have corresponding enrollment forms",
+      EditType == "Invalid Response" ~ "Correct invalid responses based on defined options in data dictionary/CRFs",
+      EditType == "Out of Range" ~ "Review and correct data values outside min and max range",
+      EditType == "MomID Ineligible" ~ "Verify enrollment criteria for ANC/PNC forms",
+      EditType == "Visit Type Error" ~ "Review visit types and dates for accuracy",
+      EditType == "Duplicate Visit Type" ~ "Investigate and resolve duplicate visit types",
+      grepl("Infant", EditType) & grepl("Form", EditType) ~ "Ensure infant IDs are included in all required forms",
+      EditType == "InfantID Missing Delivery Form" ~ "Ensure all InfantIDs in PNC forms are included in delivery form",
+      grepl("Missing", EditType) & grepl("Form", EditType) ~ "Provide missing form or complete required forms for missed scheduled visits",
+      EditType == "Inaccurate EDD" ~ "Review and verify accuracy of Estimated Due Date",
+      EditType == "Inconsistencies Between LMP EDD and US EDD" ~ "Investigate discrepancies between LMP EDD and Ultrasound EDD",
+      EditType == "Inconsistencies Between LMP GA and US GA" ~ "Investigate discrepancies between LMP GA and Ultrasound GA",
+      EditType == "Visit Date is the same as EDD" ~ "Review and correct inconsistencies between visit dates and EDD",
+      EditType == "Provide Ineligibility Criteria" ~ "Provide eligibility criteria for excluded participants",
+      EditType == "Ineligibility Skip Pattern Error" ~ "Review and investigate OTHER exclusion criteria variable",
+      EditType == "Specify Other Reason" ~ "Specify exclusion criteria for participants without identified reasons",
+      EditType == "Size for gestational age either <0.5 or >99.5 percentile" ~ "Review birth weight and/or gestational age at birth",
+      EditType == "Invalid visit following reported infant death" ~ "Review visit date where infant was reported `alive` following report of death",
+      EditType == "Invalid visit following reported stillbirth" ~ "Review visit date where infant was reported `alive` following report of stillbirth",
+      EditType == "Invalid Visit Type" ~ "Review visit type extra tab and correct discrepancy" ),
+    `Form and Edit Type` = paste(Form, EditType, sep = " - "))
 
-######## OUT OF RANGE QUERIES ######## 
-# extract all out of range and invalid response option queries that are pulled >100 times in the query report 
-report_query_outrange <- report %>% filter((VarFormEdit %in% high_freq_to_exclude)) %>%  
-  filter((VarFormEdit %in% high_freq_to_exclude_outrange)) 
+table_high_freq <- ungroup(table_high_freq)
 
-table_high_freq_outrange <- report_query_outrange %>% 
-  rename("response" = "Variable Value")%>%  rename("varname" = "Variable Name")%>% 
-  mutate(
-    EditTypeID = case_when(
-      EditType == "Out of Range" ~ "01"
-    ),
-    Recommendations = case_when(
-      EditTypeID %in% c("01") ~ "Provide valid date/data in the dataset",
-    )
-  ) %>% 
-  select(-EditTypeID) %>% 
-  group_by(VarFormEdit, response, Recommendations, Form, varname, EditType) %>% 
-  count(name = "count") %>% 
-  mutate (min = "*", max = "*",DefaultValue = "*", response_range = "*") %>% 
-  rename("Form and Edit Type" = "VarFormEdit") %>% 
-  rename("form" = "Form")
-
-High_Freq_Invalid_Query$response = as.character(High_Freq_Invalid_Query$response)
-table_high_freq_outrange$response = as.character(table_high_freq_outrange$response)
-
-combined_outrange <- bind_rows(
-  High_Freq_Invalid_Query,
-  table_high_freq_outrange %>% anti_join(High_Freq_Invalid_Query, by = "varname")
-)  %>% 
-  #filter(count > 10)  %>% 
-  group_by(varname, form) %>% 
-  mutate(response = paste0(min(as.numeric(response)), "-", max(as.numeric(response)))) %>%
-  mutate(count = n()) %>% 
-  dplyr::rename("Frequency" = "count") %>% 
-  distinct()
-
-
-table_high_freq_to_export <- bind_rows(combined_outrange, table_high_freq) %>% 
-  select ('Form and Edit Type', varname, form, EditType, response, Frequency, min, max, response_range, DefaultValue, Recommendations)
-
+table_high_freq_to_export <- table_high_freq %>%
+  select(`Form and Edit Type`, `Variable Name`, Form, EditType, Response = `Variable Value`, Frequency, 
+         `Minimum Value`, `Maximum Value`, `Response Range`, `Default Value`, Recommendations, -VarFormEdit) %>%
+  mutate(`Remode Edit` = NA,
+         Notes = NA)
 #*****************************************************************************
 #* Extracting previous week's queries 
 #*****************************************************************************
@@ -212,13 +182,23 @@ report_query_to_export = report_query %>% filter(!(QueryID %in% queryid_to_remov
 #* Removing "non-queries" from additional tabs in the report
 #*****************************************************************************
 
-if (exists("EDD_query_comments_to_export")== TRUE){
+
+if (exists("EDD_query_comments")== TRUE){
   EDD_query_comments_to_export = EDD_query_comments %>% filter(!(QueryID %in% queryid_to_remove_vec))
 }
 
-if (exists("visit_type_query_extra_tab_to_export")== TRUE){
+if (exists("visit_type_query_extra_tab")== TRUE){
   visit_type_query_extra_tab_to_export = visit_type_query_extra_tab %>% filter(!(QueryID %in% queryid_to_remove_vec))
 }
+
+if (exists("sga_extra_tab")== TRUE){
+  sga_extra_tab_to_export = sga_extra_tab %>% filter(!(QueryID %in% queryid_to_remove_vec))
+}
+
+if (exists("inf_dead_than_alive_extra_tab")== TRUE){
+  inf_dead_than_alive_extra_tab_to_export = inf_dead_than_alive_extra_tab %>% filter(!(QueryID %in% queryid_to_remove_vec))
+}
+
 #*****************************************************************************
 #* Generating summary table 
 #*****************************************************************************
