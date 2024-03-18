@@ -1,7 +1,7 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 26 February 2024
+#* Last updated: 18 March 2024
 
 #*Input: Long data 
 #*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
@@ -237,10 +237,11 @@ invalid_response_categorical_query <- invalid_response_categorical_query %>% fil
 invalid_response_categorical_query <- invalid_response_categorical_query %>% filter(form != "MNH25")
 
 ## only keep the first 7 columns 
-InvalidResponseCategoricalQuery_Export = invalid_response_categorical_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+InvalidResponseCategoricalQuery_Export = invalid_response_categorical_query %>% 
+  select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT, VisitDate, form, varname, response)
 
 # update naming
-names(InvalidResponseCategoricalQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(InvalidResponseCategoricalQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
 if (nrow(InvalidResponseCategoricalQuery_Export)>=1){
@@ -312,7 +313,8 @@ out_range_default_value_continuous <- forms_con_merged %>%
 forms_con_query <- forms_con_query %>% filter(!(response %in% default_values_continuous))
 
 ## only keep the first 7 columns 
-forms_con_query <- forms_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+forms_con_query <- forms_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) %>%
+  setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT,VisitDate, form, varname, response) 
 ConRangeQuery_Export <- forms_con_query
 
 
@@ -323,7 +325,7 @@ ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(!(varname %in% fetal_bio
 ConRangeQuery_Export <- ConRangeQuery_Export %>% filter(form != "MNH25")
 
 # update naming
-names(ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
 
@@ -334,7 +336,6 @@ if (nrow(ConRangeQuery_Export)>=1){
                                #MomID = "NA", PregID = "NA",
                                #VisitDate = "NA", 
                                ConRangeQuery_Export, 
-                               #`Variable Name` = "NA",
                                FieldType = "Number", 
                                EditType = "Out of Range", 
                                DateEditReported = format(Sys.time(), "%Y-%m-%d"))
@@ -374,11 +375,13 @@ forms_date$editmessage <- ifelse(forms_date$outrange == "", "NoError", "Out of R
 forms_date_query <- forms_date %>% filter(editmessage == "Out of Range")
 
 ## only keep the first 7 columns 
-forms_date_query <- forms_date_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+forms_date_query <- forms_date_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) %>% 
+  setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) 
+
 DateRangeQuery_Export <- forms_date_query
 
 # update naming
-names(DateRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+names(DateRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
 
 ## add additional columns 
 
@@ -398,6 +401,11 @@ if (nrow(DateRangeQuery_Export)>=1){
 if (nrow(DateRangeQuery_Export)>=1){
   DateRangeQuery_Export$`Variable Value` = as.character(DateRangeQuery_Export$`Variable Value`)
 }
+
+
+
+
+
 
 
 #*****************************************************************************
@@ -438,11 +446,12 @@ if (site_mnh25=="Kenya"){
   mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
   
   ## only keep the first 7 columns 
-  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT, VisitDate, form, varname, response) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) 
   M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
@@ -485,10 +494,10 @@ if (site_mnh25=="Kenya"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "TypeVisit", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   if (nrow(M25_OutRangeNumericQuery_Export)>=1){
@@ -525,11 +534,12 @@ if (site_mnh25=="Pakistan"){
   mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
   
   ## only keep the first 7 columns 
-  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT, VisitDate, form, varname, response) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) 
   M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
@@ -572,10 +582,10 @@ if (site_mnh25=="Pakistan"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, TYPE_VISIT,VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   if (nrow(M25_OutRangeNumericQuery_Export)>=1){
@@ -612,11 +622,12 @@ if (site_mnh25=="Ghana"){
   mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
   
   ## only keep the first 7 columns 
-  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
   M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
@@ -659,10 +670,10 @@ if (site_mnh25=="Ghana"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   if (nrow(M25_OutRangeNumericQuery_Export)>=1){
@@ -699,11 +710,12 @@ if (site_mnh25=="Zambia"){
   mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
   
   ## only keep the first 7 columns 
-  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) %>%
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) 
   M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
@@ -746,10 +758,10 @@ if (site_mnh25=="Zambia"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   if (nrow(M25_OutRangeNumericQuery_Export)>=1){
@@ -787,11 +799,12 @@ if (site_mnh25=="India"){
   mnh25_con_query <- mnh25_con %>% filter(editmessage == "Out of Range")
   
   ## only keep the first 7 columns 
-  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response) %>% setcolfirst(SCRNID, MOMID, PREGID, INFANTID,VisitDate, form, varname, response) 
+  mnh25_con_query <- mnh25_con_query %>% dplyr:: select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) %>% 
+    setcolfirst(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response) 
   M25_ConRangeQuery_Export <- mnh25_con_query
   
   # update naming
-  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_ConRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   
@@ -834,10 +847,10 @@ if (site_mnh25=="India"){
   
   
   ## only keep the first 7 columns 
-  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, form, varname, response)
+  M25_OutRangeNumericQuery_Export = out_range_numeric_M25_query %>% select(SCRNID, MOMID, PREGID, INFANTID,TYPE_VISIT, VisitDate, form, varname, response)
   
   # update naming
-  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID", "VisitDate", "Form", "Variable Name", "Variable Value")
+  names(M25_OutRangeNumericQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitType", "VisitDate", "Form", "Variable Name", "Variable Value")
   
   ## add additional columns 
   if (nrow(M25_OutRangeNumericQuery_Export)>=1){
