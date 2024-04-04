@@ -1,6 +1,6 @@
 # PRISMA Data Query Codes
 This repository contains all PRISMA codes that will be used internally and by sites. Right now this folder holds all of the query codes 
-#### :pushpin: *Last updated on 26 February 2024*
+#### :pushpin: *Last updated on 04 April 2024*
 
 ## File Structure: 
 * The query codes in this repository follow a similar naming structure as Synapse with the main folder being the date of upload in yyyy-mm-dd format 
@@ -11,7 +11,6 @@ This repository contains all PRISMA codes that will be used internally and by si
   - ### Main folder: 2023-04-23
   	- ### Sub folder: data
   	- ### Sub folder: queries
- 
      
 ## Queries Included: 
 **1\. `00_DataImport_MatDataquery.R`** 
@@ -60,6 +59,8 @@ This repository contains all PRISMA codes that will be used internally and by si
      - One .rda file with all MOMIDs that do not meet enrollment criteria 
    - function: 
      - Confirm all enrolled particpants meet our enrollment criteria as in MNH02.
+     - Confirm all participants who do not meet the pre-screening criteria have reported at least one ineligibility criteria.
+     - Flag all particpants with GA>48wks and are missing IPC (or closeout form). 
 
 **6\. `07_EddGA_Dataquery.R`** 
    - input: Wide data (all raw .csv files) and Long data
@@ -68,7 +69,21 @@ This repository contains all PRISMA codes that will be used internally and by si
    - function: 
      - Identifies the differences between Ultrasound reported values and LMP (last menstral period) reported values.
 
-**7\. `DataExport_Dataquery.R`** 
+**7\. `07_SGA_Dataquery.R`** 
+   - input: Wide data (all raw .csv files) and Long data
+   - output:
+     - One .rda file with all MOMIDs and INFANTIDs that have SGA percentile <0.5 or >99.5 by intergrowth21 standards
+   - function: 
+     - Identifies infants with size for gestational age with SGA percentile <0.5 or >99.5 by intergrowth21 standard
+
+**8\. `08_InfantDeadThenAlive_Dataquery.R`** 
+   - input: Wide data (all raw .csv files) and Long data
+   - output:
+     - One .rda file with all INFANTIDs with a reported death or stillbirth with a subsequent visit where the vital status was reported as alive. 
+   - function: 
+     - Identifies all infants with an invalid visit following a reported death. 
+
+**9\. `DataExport_Dataquery.R`** 
    - input: All .rds files 
    - output:
      - Excel sheet with a full query report 
@@ -76,7 +91,8 @@ This repository contains all PRISMA codes that will be used internally and by si
      - Merge all queries together and assign query ID
     
 **Documents in this repository:** 
-   - Current data dictionary (v2.3) (filename: PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx)
+   - Current data dictionary (v2.4) (filename: PRiSMA-MNH-Data-Dictionary-Repository-V.2.4-NOV202023_queries.xlsx)
+   - Archive data dictionary (v2.3) (filename: PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx)
    - Excel file with fetal biometry ranges. This is required for the out of range codes (filename: fetal_biometry_range.xlsx)
    - PRISMA Query Report Template (filename: PRISMA-Query-Template-07Sept2023.xlsx)
    - PRISMA Non-Query Template (filename: PRISMA-Non-Queries-template-07Sept2023.xlsx)
