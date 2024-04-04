@@ -141,7 +141,8 @@ table_high_freq <- report_high_freq %>%
       EditType == "Size for gestational age either <0.5 or >99.5 percentile" ~ "Review birth weight and/or gestational age at birth",
       EditType == "Invalid visit following reported infant death" ~ "Review visit date where infant was reported `alive` following report of death",
       EditType == "Invalid visit following reported stillbirth" ~ "Review visit date where infant was reported `alive` following report of stillbirth",
-      EditType == "Invalid Visit Type" ~ "Review visit type extra tab and correct discrepancy" ),
+      EditType == "Invalid Visit Type" ~ "Review visit type extra tab and correct discrepancy",
+      EditType == "Participant GA >=48 weeks with no reported birth outcome (MNH04 or MNH09)" ~ "Confirm birth outcome with particpant or closeout" ),
     `Form and Edit Type` = paste(Form, EditType, sep = " - "))
 
 table_high_freq <- ungroup(table_high_freq)
