@@ -23,8 +23,8 @@ library(lubridate)
 ## UPDATE EACH RUN ## 
 # 1. Update "UploadDate" (this should match the folder name in synapse)
 # 2. Set "site" variable to the site you are running the query for 
-UploadDate = "2024-03-15"
-site = "Pakistan"
+UploadDate = "2024-05-03"
+site = "India_CMC"
 
 #*****************************************************************************
 #* load data
@@ -38,30 +38,22 @@ load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wid
 #Step 0 - if MOMID or PREGID is not present in MNH01, we want to transfer the MOMID and PREGIDs from MNH02 into MNH01 by SCRNID
 
 #Check for different variations of "N/A" in the MOMID column
-
-if (site == "Ghana") {
   
-  mnh02_id <- mnh02 %>% select (MOMID, PREGID, SCRNID)
-  #mnh01 <- merge(mnh01, mnh02_id, by = c ("MOMID", "PREGID"))
+na_variations <- c("n/a", "NA", "N/A", "na", NA, "")
   
+if (sum(mnh01$MOMID %in% na_variations | is.na(mnh01$MOMID), na.rm = TRUE) > 2) {
+# If more than ten MOMID values match the variations of "N/A",
+# perform the merge by SCRNID.
+mnh01 <- merge(mnh01[, !names(mnh01) %in% c("MOMID", "PREGID")],
+               mnh02[, c("SCRNID", "MOMID", "PREGID")], by = "SCRNID", all.x = TRUE)
 } else {
-  
-  na_variations <- c("n/a", "NA", "N/A", "na", NA, "")
-  
-  if (sum(mnh01$MOMID %in% na_variations | is.na(mnh01$MOMID), na.rm = TRUE) > 2) {
-    # If more than ten MOMID values match the variations of "N/A",
-    # perform the merge by SCRNID.
-    mnh01 <- merge(mnh01[, !names(mnh01) %in% c("MOMID", "PREGID")],
-                   mnh02[, c("SCRNID", "MOMID", "PREGID")], by = "SCRNID", all.x = TRUE)
-  } else {
-    # If not, print a message indicating that MOMID and PREGID are present.
-    
-    print("MOMID and PREGID are present.")
-  }
-  
-  mnh01 <- mnh01[!(mnh01$MOMID %in% na_variations | is.na(mnh01$MOMID)), ]
+# If not, print a message indicating that MOMID and PREGID are present.
+
+print("MOMID and PREGID are present.")
   
 }
+  
+mnh01 <- mnh01[!(mnh01$MOMID %in% na_variations | is.na(mnh01$MOMID)), ]
 
 #Parse MNH01 dates to one date format
 mnh01$US_OHOSTDAT <- ymd(parse_date_time(mnh01$US_OHOSTDAT,c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
@@ -75,59 +67,19 @@ mnh01$CAL_EDD_BRTHDAT_FTS2 <- ymd(parse_date_time(mnh01$CAL_EDD_BRTHDAT_FTS2, c(
 mnh01$CAL_EDD_BRTHDAT_FTS3 <- ymd(parse_date_time(mnh01$CAL_EDD_BRTHDAT_FTS3, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
 mnh01$CAL_EDD_BRTHDAT_FTS4 <- ymd(parse_date_time(mnh01$CAL_EDD_BRTHDAT_FTS4, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
 
-# mnh01$US_OHOSTDAT <- ymd(parse_date_time(mnh01$US_OHOSTDAT, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-# mnh01$US_EDD_BRTHDAT_FTS1 <- ymd(parse_date_time(mnh01$US_EDD_BRTHDAT_FTS1, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-# mnh01$US_EDD_BRTHDAT_FTS2 <- ymd(parse_date_time(mnh01$US_EDD_BRTHDAT_FTS2, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-# mnh01$US_EDD_BRTHDAT_FTS3 <- ymd(parse_date_time(mnh01$US_EDD_BRTHDAT_FTS3, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-# mnh01$US_EDD_BRTHDAT_FTS4 <- ymd(parse_date_time(mnh01$US_EDD_BRTHDAT_FTS4, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-
 #Calculating GA and choosing the "latest" possible GA 
+India_Sites <- c("India_CMC", "India-CMC", "India_SAS", "India-SAS")
 
-mnh01 <- mnh01 %>% 
-  #making default values equal to NA
-  mutate(US_GA_WKS_AGE_FTS1 = ifelse(US_GA_WKS_AGE_FTS1 %in% c(-7, 77), NA, US_GA_WKS_AGE_FTS1),
-         US_GA_DAYS_AGE_FTS1 = ifelse(US_GA_DAYS_AGE_FTS1 %in% c(-7, 77), NA, US_GA_DAYS_AGE_FTS1),
-         US_GA_WKS_AGE_FTS2 = ifelse(US_GA_WKS_AGE_FTS2 %in% c(-7, 77), NA, US_GA_WKS_AGE_FTS2),
-         US_GA_DAYS_AGE_FTS2 = ifelse(US_GA_DAYS_AGE_FTS2 %in% c(-7, 77), NA, US_GA_DAYS_AGE_FTS2),
-         US_GA_WKS_AGE_FTS3 = ifelse(US_GA_WKS_AGE_FTS3 %in% c(-7, 77), NA, US_GA_WKS_AGE_FTS3),
-         US_GA_DAYS_AGE_FTS3 = ifelse(US_GA_DAYS_AGE_FTS3 %in% c(-7, 77), NA, US_GA_DAYS_AGE_FTS3),
-         US_GA_WKS_AGE_FTS4 = ifelse(US_GA_WKS_AGE_FTS4 %in% c(-7, 77), NA, US_GA_WKS_AGE_FTS4),
-         US_GA_DAYS_AGE_FTS4 = ifelse(US_GA_DAYS_AGE_FTS4 %in% c(-7, 77), NA, US_GA_DAYS_AGE_FTS4),
-         GA_LMP_WEEKS_SCORRES = ifelse(GA_LMP_WEEKS_SCORRES %in% c(-7, 77), NA, GA_LMP_WEEKS_SCORRES),
-         GA_LMP_DAYS_SCORRES = ifelse(GA_LMP_DAYS_SCORRES %in% c(-7, 77), NA, GA_LMP_DAYS_SCORRES)
-         
-  ) %>%  
-  
-  #making the variables numeric
-  mutate (US_GA_WKS_AGE_FTS1 = as.numeric(US_GA_WKS_AGE_FTS1),
-          US_GA_DAYS_AGE_FTS1 = as.numeric(US_GA_DAYS_AGE_FTS1),
-          US_GA_WKS_AGE_FTS2 = as.numeric(US_GA_WKS_AGE_FTS2),
-          US_GA_DAYS_AGE_FTS2 = as.numeric(US_GA_DAYS_AGE_FTS2),
-          US_GA_WKS_AGE_FTS3 = as.numeric(US_GA_WKS_AGE_FTS3),
-          US_GA_DAYS_AGE_FTS3= as.numeric(US_GA_DAYS_AGE_FTS3),
-          US_GA_WKS_AGE_FTS4 = as.numeric(US_GA_WKS_AGE_FTS4),
-          US_GA_DAYS_AGE_FTS4 = as.numeric(US_GA_DAYS_AGE_FTS4),
-          GA_LMP_WEEKS_SCORRES = as.numeric(GA_LMP_WEEKS_SCORRES),
-          GA_LMP_DAYS_SCORRES = as.numeric(GA_LMP_DAYS_SCORRES)) %>%
-  
-  mutate (US_GA_DAYS_AGE_FTS1 = ifelse(is.na(US_GA_DAYS_AGE_FTS1), 0, US_GA_DAYS_AGE_FTS1), #we want to make days 0 if it is empty 
-          US_GA_DAYS_AGE_FTS2 = ifelse(is.na(US_GA_DAYS_AGE_FTS2), 0, US_GA_DAYS_AGE_FTS2), #we want to make days 0 if it is empty 
-          US_GA_DAYS_AGE_FTS3 = ifelse(is.na(US_GA_DAYS_AGE_FTS3), 0, US_GA_DAYS_AGE_FTS3), #we want to make days 0 if it is empty 
-          US_GA_DAYS_AGE_FTS4 = ifelse(is.na(US_GA_DAYS_AGE_FTS4), 0, US_GA_DAYS_AGE_FTS4), #we want to make days 0 if it is empty 
-          GA_LMP_WEEKS_SCORRES = ifelse(is.na(GA_LMP_WEEKS_SCORRES), 0, GA_LMP_WEEKS_SCORRES),
-          GA_LMP_DAYS_SCORRES = ifelse(is.na(GA_LMP_DAYS_SCORRES), 0, GA_LMP_DAYS_SCORRES),
-          
-          GA_DAYS1 = (US_GA_WKS_AGE_FTS1 * 7) + US_GA_DAYS_AGE_FTS1, #Calculating gestational age in days 
-          GA_DAYS2 = (US_GA_WKS_AGE_FTS2 * 7) + US_GA_DAYS_AGE_FTS2, #Calculating gestational age in days  
-          GA_DAYS3 = (US_GA_WKS_AGE_FTS3 * 7) + US_GA_DAYS_AGE_FTS3, #Calculating gestational age in days  
-          GA_DAYS4 = (US_GA_WKS_AGE_FTS4 * 7) + US_GA_DAYS_AGE_FTS4, #Calculating gestational age in days 
-          GA_LMP = (GA_LMP_WEEKS_SCORRES * 7) + GA_LMP_DAYS_SCORRES #Calculating gestational age by LMP in days 
-          
-  )%>% 
-  mutate(GA_DAYS = pmax(GA_DAYS1, GA_DAYS2, GA_DAYS3, GA_DAYS4,  na.rm = TRUE))
+ if (!(site %in% India_Sites)) { 
+mnh01_mod <- mnh01 %>% mutate (GA_US_DAYS_FTS1 =  ifelse(US_GA_WKS_AGE_FTS1!= -7 & US_GA_DAYS_AGE_FTS1 != -7,  (US_GA_WKS_AGE_FTS1 * 7 + US_GA_DAYS_AGE_FTS1), NA), 
+                           GA_US_DAYS_FTS2 =  ifelse(US_GA_WKS_AGE_FTS2!= -7 & US_GA_DAYS_AGE_FTS2 != -7,  (US_GA_WKS_AGE_FTS2 * 7 + US_GA_DAYS_AGE_FTS2), NA),
+                           GA_US_DAYS_FTS3 =  ifelse(US_GA_WKS_AGE_FTS3!= -7 & US_GA_DAYS_AGE_FTS3 != -7,  (US_GA_WKS_AGE_FTS3 * 7 + US_GA_DAYS_AGE_FTS3), NA),
+                           GA_US_DAYS_FTS4 =  ifelse(US_GA_WKS_AGE_FTS4!= -7 & US_GA_DAYS_AGE_FTS4 != -7,  (US_GA_WKS_AGE_FTS4 * 7 + US_GA_DAYS_AGE_FTS4), NA),
+                           GA_US_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE),
+                           GA_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4,  na.rm = TRUE )) 
 
 #Choosing the earliest EDD Date, for multiple pregnancies
-mnh01 <- mnh01 %>% mutate(US_EDD_BRTHDAT_FTS1 = replace(US_EDD_BRTHDAT_FTS1, US_EDD_BRTHDAT_FTS1== ymd("1907-07-07") | US_EDD_BRTHDAT_FTS1== ymd("2007-07-07") , NA), 
+mnh01_mod <- mnh01_mod %>% mutate(US_EDD_BRTHDAT_FTS1 = replace(US_EDD_BRTHDAT_FTS1, US_EDD_BRTHDAT_FTS1== ymd("1907-07-07") | US_EDD_BRTHDAT_FTS1== ymd("2007-07-07") , NA), 
                           US_EDD_BRTHDAT_FTS2 = replace(US_EDD_BRTHDAT_FTS2, US_EDD_BRTHDAT_FTS2==ymd("1907-07-07") | US_EDD_BRTHDAT_FTS2== ymd("2007-07-07"), NA),
                           US_EDD_BRTHDAT_FTS3 = replace(US_EDD_BRTHDAT_FTS3, US_EDD_BRTHDAT_FTS3== ymd("1907-07-07")| US_EDD_BRTHDAT_FTS3== ymd("2007-07-07"), NA), 
                           US_EDD_BRTHDAT_FTS4 = replace(US_EDD_BRTHDAT_FTS4, US_EDD_BRTHDAT_FTS4==ymd("1907-07-07")| US_EDD_BRTHDAT_FTS4== ymd("2007-07-07"), NA),
@@ -135,19 +87,15 @@ mnh01 <- mnh01 %>% mutate(US_EDD_BRTHDAT_FTS1 = replace(US_EDD_BRTHDAT_FTS1, US_
   mutate(EDD = pmin(US_EDD_BRTHDAT_FTS1, US_EDD_BRTHDAT_FTS2, 
                     US_EDD_BRTHDAT_FTS3, US_EDD_BRTHDAT_FTS4,  na.rm = TRUE))
 
-mnh01$EDD <- ymd(parse_date_time(mnh01$EDD, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-
-
-na_variations <- c("n/a", "NA", "N/A", "na", NA, "")
-
+mnh01_mod$EDD <- ymd(parse_date_time(mnh01_mod$EDD, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
 # Filter all participants that met the inclusion criteria in MNH process M02 data
-Eligible <- mnh02 %>% filter (SCRN_RETURN == 1 & CONSENT_IEORRES == 1 & AGE_IEORRES == 1  & PC_IEORRES == 1  & CATCHMENT_IEORRES == 1  & CATCH_REMAIN_IEORRES == 1) %>%
-  mutate (Eligible = 1) %>% select(SCRNID, Eligible, SCRN_RETURN)  %>%
+Eligible <- mnh02 %>% filter (CONSENT_IEORRES == 1 & AGE_IEORRES == 1  & PC_IEORRES == 1  & CATCHMENT_IEORRES == 1  & CATCH_REMAIN_IEORRES == 1 ) %>%
+  mutate (Eligible = 1) %>% select(SCRNID, Eligible)  %>%
   distinct(SCRNID, .keep_all = TRUE)
 
 #Step 0.5a:Developing a Masterlist of Enrolled Individuals
-Screened <- mnh01 %>% filter (TYPE_VISIT == 1 & GA_DAYS <= 146 & GA_DAYS != 0 & MAT_VISIT_MNH01 %in% c(1,2) ) %>% 
-  select (MOMID, PREGID, SCRNID, US_OHOSTDAT, EDD, GA_DAYS, TYPE_VISIT, ESTIMATED_EDD_SCDAT,GA_LMP)  %>%
+Screened <- mnh01_mod %>% filter (GA_DAYS <= 146 & GA_DAYS != 0 & MAT_VISIT_MNH01 %in% c(1,2) ) %>% 
+  select (MOMID, PREGID, SCRNID, US_OHOSTDAT, EDD, GA_DAYS, TYPE_VISIT, ESTIMATED_EDD_SCDAT)  %>%
   distinct(MOMID, PREGID, .keep_all = TRUE) 
 
 Enroled <- merge(Screened, Eligible, by = c("SCRNID"))  %>% select (-c("TYPE_VISIT"))  %>%
@@ -155,44 +103,67 @@ Enroled <- merge(Screened, Eligible, by = c("SCRNID"))  %>% select (-c("TYPE_VIS
 
 #Use the Ultrasound GA to calculate An Estimated EDD (EDD_EST)
 EDD <- Enroled %>%
-  mutate(
-    UPLOADDT = as.Date(UploadDate),
-    EST_CONC_DATE = US_OHOSTDAT - days(GA_DAYS), 
-    EDD_EST = EST_CONC_DATE + days(280), 
-    DIFF = abs(as.numeric(difftime(EDD, EDD_EST, units = "days"))),
-    DIFF_GA = abs(as.numeric(GA_LMP - GA_DAYS)),
-    DIFF_EDD = abs(as.numeric(difftime(ESTIMATED_EDD_SCDAT, EDD, units = "days")))) %>%
-  select( MOMID, SCRNID, PREGID, VisitDate = US_OHOSTDAT, ESTIMATED_EDD_SCDAT, EDD,
-          UPLOADDT, EDD_EST, GA_DAYS, GA_LMP, EST_CONC_DATE, DIFF, DIFF_GA,DIFF_EDD) %>%
+  mutate( UPLOADDT = as.Date(UploadDate),
+          EST_CONC_DATE = US_OHOSTDAT - days(GA_DAYS), 
+          EDD_EST = EST_CONC_DATE + days(280), 
+          DIFF = abs(as.numeric(difftime(EDD, EDD_EST, units = "days")))) %>%
+  select( MOMID, SCRNID, PREGID, VisitDate = US_OHOSTDAT, EDD,
+          UPLOADDT, EDD_EST, GA_DAYS, EST_CONC_DATE, DIFF) %>%
   distinct(MOMID, PREGID, .keep_all = TRUE) %>% filter (GA_DAYS < 175)
 
 Enrolled <- Enroled %>% mutate(GA_TODAY = round(GA_DAYS + as.numeric(difftime(UploadDate, US_OHOSTDAT, units = "days"))))  %>%
   filter (GA_TODAY >= 139) 
-#**************************************************************************************************************
-#PART B: MISSING FORM QUERY
 
-if (site=="India_CMC"){
+} 
+
+if (site %in% India_Sites) {
+  mnh01_mod <- mnh01 %>% 
+  ## extract the maximum gestational age for each woman 
+  mutate(GA_US_DAYS_FTS1 =  ifelse(CAL_GA_WKS_AGE_FTS1!= -7 & CAL_GA_DAYS_AGE_FTS1 != -7,  (CAL_GA_WKS_AGE_FTS1 * 7 + CAL_GA_DAYS_AGE_FTS1), NA), 
+         GA_US_DAYS_FTS2 =  ifelse(CAL_GA_WKS_AGE_FTS2!= -7 & CAL_GA_DAYS_AGE_FTS2 != -7,  (CAL_GA_WKS_AGE_FTS2 * 7 + CAL_GA_DAYS_AGE_FTS2), NA),
+         GA_US_DAYS_FTS3 =  ifelse(CAL_GA_WKS_AGE_FTS3!= -7 & CAL_GA_DAYS_AGE_FTS3 != -7,  (CAL_GA_WKS_AGE_FTS3 * 7 + CAL_GA_DAYS_AGE_FTS3), NA),
+         GA_US_DAYS_FTS4 =  ifelse(CAL_GA_WKS_AGE_FTS4!= -7 & CAL_GA_DAYS_AGE_FTS4 != -7,  (CAL_GA_WKS_AGE_FTS4 * 7 + CAL_GA_DAYS_AGE_FTS4), NA)) %>% 
+  mutate(GA_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE)) %>%
+  mutate(CAL_EDD_BRTHDAT_FTS1 = replace(CAL_EDD_BRTHDAT_FTS1, CAL_EDD_BRTHDAT_FTS1== ymd("1907-07-07") | CAL_EDD_BRTHDAT_FTS1== ymd("2007-07-07") , NA), 
+         CAL_EDD_BRTHDAT_FTS2 = replace(CAL_EDD_BRTHDAT_FTS2, CAL_EDD_BRTHDAT_FTS2==ymd("1907-07-07") | CAL_EDD_BRTHDAT_FTS2== ymd("2007-07-07"), NA),
+         CAL_EDD_BRTHDAT_FTS3 = replace(CAL_EDD_BRTHDAT_FTS3, CAL_EDD_BRTHDAT_FTS3== ymd("1907-07-07")| CAL_EDD_BRTHDAT_FTS3== ymd("2007-07-07"), NA), 
+         CAL_EDD_BRTHDAT_FTS4 = replace(CAL_EDD_BRTHDAT_FTS4, CAL_EDD_BRTHDAT_FTS4==ymd("1907-07-07")| CAL_EDD_BRTHDAT_FTS4== ymd("2007-07-07"), NA)) %>%
+  mutate(EDD = pmin(CAL_EDD_BRTHDAT_FTS1, CAL_EDD_BRTHDAT_FTS2, 
+                    CAL_EDD_BRTHDAT_FTS3, CAL_EDD_BRTHDAT_FTS4,  na.rm = TRUE)) %>%
+  filter (!is.na(EDD) & TYPE_VISIT == 1)
+
+  mnh01_mod$EDD <- ymd(parse_date_time(mnh01_mod$EDD, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
+  # Filter all participants that met the inclusion criteria in MNH process M02 data
+  Eligible <- mnh02 %>% filter (CONSENT_IEORRES == 1 & AGE_IEORRES == 1  & PC_IEORRES == 1  & CATCHMENT_IEORRES == 1  & CATCH_REMAIN_IEORRES == 1 ) %>%
+    mutate (Eligible = 1) %>% select(SCRNID, Eligible)  %>%
+    distinct(SCRNID, .keep_all = TRUE)
   
-  CAL_GA <- mnh01 %>% 
-    ## extract the maximum gestational age for each woman 
-    mutate(GA_US_DAYS_FTS1 =  ifelse(CAL_GA_WKS_AGE_FTS1!= -7 & CAL_GA_DAYS_AGE_FTS1 != -7,  (CAL_GA_WKS_AGE_FTS1 * 7 + CAL_GA_DAYS_AGE_FTS1), NA), 
-           GA_US_DAYS_FTS2 =  ifelse(CAL_GA_WKS_AGE_FTS2!= -7 & CAL_GA_DAYS_AGE_FTS2 != -7,  (CAL_GA_WKS_AGE_FTS2 * 7 + CAL_GA_DAYS_AGE_FTS2), NA),
-           GA_US_DAYS_FTS3 =  ifelse(CAL_GA_WKS_AGE_FTS3!= -7 & CAL_GA_DAYS_AGE_FTS3 != -7,  (CAL_GA_WKS_AGE_FTS3 * 7 + CAL_GA_DAYS_AGE_FTS3), NA),
-           GA_US_DAYS_FTS4 =  ifelse(CAL_GA_WKS_AGE_FTS4!= -7 & CAL_GA_DAYS_AGE_FTS4 != -7,  (CAL_GA_WKS_AGE_FTS4 * 7 + CAL_GA_DAYS_AGE_FTS4), NA)) %>% 
-    mutate(GA_DAYS = pmax(GA_US_DAYS_FTS1, GA_US_DAYS_FTS2, GA_US_DAYS_FTS3, GA_US_DAYS_FTS4, na.rm = TRUE)) %>%
-    mutate(CAL_EDD_BRTHDAT_FTS1 = replace(CAL_EDD_BRTHDAT_FTS1, CAL_EDD_BRTHDAT_FTS1== ymd("1907-07-07") | CAL_EDD_BRTHDAT_FTS1== ymd("2007-07-07") , NA), 
-           CAL_EDD_BRTHDAT_FTS2 = replace(CAL_EDD_BRTHDAT_FTS2, CAL_EDD_BRTHDAT_FTS2==ymd("1907-07-07") | CAL_EDD_BRTHDAT_FTS2== ymd("2007-07-07"), NA),
-           CAL_EDD_BRTHDAT_FTS3 = replace(CAL_EDD_BRTHDAT_FTS3, CAL_EDD_BRTHDAT_FTS3== ymd("1907-07-07")| CAL_EDD_BRTHDAT_FTS3== ymd("2007-07-07"), NA), 
-           CAL_EDD_BRTHDAT_FTS4 = replace(CAL_EDD_BRTHDAT_FTS4, CAL_EDD_BRTHDAT_FTS4==ymd("1907-07-07")| CAL_EDD_BRTHDAT_FTS4== ymd("2007-07-07"), NA)) %>%
-    mutate(EDD = pmin(CAL_EDD_BRTHDAT_FTS1, CAL_EDD_BRTHDAT_FTS2, 
-                      CAL_EDD_BRTHDAT_FTS3, CAL_EDD_BRTHDAT_FTS4,  na.rm = TRUE)) %>%
-    select(MOMID, PREGID, GA_DAYS, EDD) %>% filter (!is.na(EDD))
+  #Step 0.5a:Developing a Masterlist of Enrolled Individuals
+  Screened <- mnh01_mod %>% filter (GA_DAYS <= 146 & GA_DAYS != 0 & MAT_VISIT_MNH01 %in% c(1,2) ) %>% 
+    select (MOMID, PREGID, SCRNID, US_OHOSTDAT, EDD, GA_DAYS, TYPE_VISIT, ESTIMATED_EDD_SCDAT)  %>%
+    distinct(MOMID, PREGID, .keep_all = TRUE) 
   
-  EDD <- merge (EDD[, !names(EDD) %in% c("EDD", "GA_DAYS")],
-                CAL_GA, by = c("MOMID", "PREGID"), all.x = TRUE)
+  Enroled <- merge(Screened, Eligible, by = c("SCRNID"))  %>% select (-c("TYPE_VISIT"))  %>%
+    distinct(MOMID, PREGID, .keep_all = TRUE)
   
+  #Use the Ultrasound GA to calculate An Estimated EDD (EDD_EST)
+  EDD <- Enroled %>%
+    mutate( UploadDate = as.Date(UploadDate),
+            UPLOADDT = UploadDate - 15, #India site reporting uploading data from 15days ago
+            EST_CONC_DATE = US_OHOSTDAT - days(GA_DAYS), 
+            EDD_EST = EST_CONC_DATE + days(280), 
+            DIFF = abs(as.numeric(difftime(EDD, EDD_EST, units = "days")))) %>%
+    select( MOMID, SCRNID, PREGID, VisitDate = US_OHOSTDAT, EDD,
+            UPLOADDT, EDD_EST, GA_DAYS, EST_CONC_DATE, DIFF) %>%
+    distinct(MOMID, PREGID, .keep_all = TRUE) %>% filter (GA_DAYS < 175)
+  
+  Enrolled <- Enroled %>% mutate(GA_TODAY = round(GA_DAYS + as.numeric(difftime(UploadDate, US_OHOSTDAT, units = "days"))))  %>%
+    filter (GA_TODAY >= 139) 
 }
 
+
+#**************************************************************************************************************
+#PART B: MISSING FORM QUERY
 # Create date bounds to get a lower bound and upper bound visit time period
 EDD_Date <- EDD %>%
   mutate(
@@ -204,9 +175,7 @@ EDD_Date <- EDD %>%
     UP28 = EST_CONC_DATE + days(216), 
     UP32 = EST_CONC_DATE + days(237), 
     UP36 = EST_CONC_DATE + days(272)) %>% 
-  select(MOMID, PREGID, VisitDate, UPLOADDT, EDD, 
-         EDD_EST, GA_DAYS, DIFF, EST_CONC_DATE, ESTIMATED_EDD_SCDAT,DIFF_GA, GA_LMP,
-         DIFF_EDD,
+  select(MOMID, PREGID, VisitDate, UPLOADDT, EDD, EDD_EST, GA_DAYS, DIFF, EST_CONC_DATE,
          LW20, LW28, LW32, LW36, UP20, UP28, UP32, UP36) %>%  
   mutate(MOMID = ifelse(MOMID %in% na_variations, NA, MOMID),
          PREGID = ifelse(PREGID %in% na_variations, NA, PREGID)) %>%
@@ -214,11 +183,10 @@ EDD_Date <- EDD %>%
   distinct(MOMID, PREGID, .keep_all = TRUE)
 
 #Create a due dates for ANC20, 3, 4, 5 timeline based on the calculations FALSE - not due, TRUE - due period, 2 - past due
-EDD_Date$DUE20 <- ifelse ((EDD_Date$UPLOADDT > EDD_Date$UP20) & (EDD_Date$GA_DAYS <= 125), TRUE, FALSE) 
+EDD_Date$DUE20 <- ifelse ((EDD_Date$UPLOADDT > EDD_Date$UP20) & (EDD_Date$GA_DAYS <= 120), TRUE, FALSE) 
 EDD_Date$DUE28 <- ifelse (EDD_Date$UPLOADDT > EDD_Date$UP28, TRUE, FALSE)
 EDD_Date$DUE32 <- ifelse (EDD_Date$UPLOADDT > EDD_Date$UP32, TRUE, FALSE)
 EDD_Date$DUE36 <- ifelse (EDD_Date$UPLOADDT > EDD_Date$UP36, TRUE, FALSE)
-
 
 if (exists("mnh09")==TRUE){
   
@@ -268,7 +236,7 @@ if (exists("mnh23")==TRUE){
 if (exists("mnh04")==TRUE) {
   
   mnh04$ANC_OBSSTDAT <- ymd(parse_date_time(mnh04$ANC_OBSSTDAT, c("%d/%m/%Y","%d-%m-%Y","%Y-%m-%d", "%d-%b-%y")))
-  
+ 
   miscarriage <- mnh04 %>%
     filter(if_any(FETAL_LOSS_DSDECOD, ~ . %in% c(1, 2, 3))) %>% 
     mutate(Visit_Date = as.Date(coalesce(!!!select(., "ANC_OBSSTDAT"))))  %>%  # Move as.Date outside mutate
@@ -286,7 +254,6 @@ if (exists("mnh04")==TRUE) {
   miss_36_  <- miscarriage %>% filter(miscarriage$Miss_Time %in% c("Remove_All","Yes_20","Yes_28", "Yes_32",  "Yes_36")) %>% select(MOMID, PREGID)
   
 }
-
 
 # Create data frames for different due times
 due20_df <- EDD_Date %>%
