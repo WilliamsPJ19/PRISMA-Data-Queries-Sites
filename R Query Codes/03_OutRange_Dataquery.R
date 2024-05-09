@@ -1,15 +1,32 @@
 #*****************************************************************************
 #*QUERY #3 -- CHECK FOR OUT OF RANGE VALUES 
 #* Written by: Stacie Loisate & Xiaoyan Hu
-#* Last updated: 18 March 2024
+
+#* Last updated: 07 May 2024
+#* Updates: 
+  ## added code to check for Blood Pressure discrepances 
+  ## added codes to address multiple india sites for MNH25 forms 
+  ## add codes to address any out of range dates (section name: Out of range dates) (around line 380)
 
 #*Input: Long data 
-#*Function: Extract any values that either (1) do not match a valid response options or (2) is out of range 
+#*Function: check for any out of range values  
 #*Output: .rda file with all out of range values 
+#*****************************************************************************
+#* Items to Update before running script 
+#* You can copy and paste "UPDATE EACH RUN" to find where to update 
+
+#* 1. Update "UploadDate" 
+#* 2. Set "site" variable to the site you are running the query for 
+
+#* Once the previous lines of code are updated, you can start to run the script 
+
+#* Notes: 
+#* make sure the data dictionary and fetal biometry excel sheets are in the right folder
+#* At the end, 2 tables will appear -- these are to check for default values -- good just to eyeball them 
 
 #*****************************************************************************
-#* Data setup 
-#*****************************************************************************
+# clear environment 
+rm(list = ls())
 
 # load packages 
 library(tidyverse)
@@ -20,23 +37,43 @@ library(dplyr)
 library(data.table)
 library(lubridate)
 
-# UPDATE EACH RUN: Update "UploadDate" (this should match the folder name in synapse)
-UploadDate = "2023-08-25"
+## UPDATE EACH RUN ## 
+# 1. Update "UploadDate" (this should match the folder name in synapse)
+# 2. Set "site" variable to the site you are running the query for 
+UploadDate = "2024-03-15"
+site = "Pakistan"
 
-# UPDATE EACH RUN: Set "site" variable to the site you are running the query for 
-site = "Kenya"
+# 3. Set your main directory 
+maindir <- paste0("~/PRiSMAv2Data/", site,"/", UploadDate, sep = "")
 
-# UPDATE EACH RUN: load in the WIDE data we generated from 00_DataImport code
-load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_wide.Rdata", sep = "")) 
+# make reorder function to use for later 
+##rearrange columns 
+setcolfirst = function(DT, ...){
+  nm = as.character(substitute(c(...)))[-1L]
+  setcolorder(DT, c(nm, setdiff(names(DT), nm)))
+}
 
-# UPDATE EACH RUN: load in the LONG data we generated from 00_DataImport code 
-load(paste0("~/PRiSMAv2Data/Kenya/2023-08-25/data/2023-08-25_long.Rdata", sep = "")) 
+#*****************************************************************************
+#* load data
+#*****************************************************************************
+## Set working directory to site-specific folder -- main folder
+#setwd(paste0("~/PRiSMAv2Data/", site, "/", UploadDate, "/", sep = ""))
 
-## UPDATE EACH RUN: set path to location where you want to save the query output below 
-path_to_save <- "~/PRiSMAv2Data/Kenya/2023-08-25/queries/"
+## Load in long data 
+load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_long.Rdata", sep = "")) 
 
-#*import data dictionary from github folder
-varNames_sheet <- read_excel("~/PRiSMAv2Data/PRISMA-Data-Queries-GW/R/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx")
+## Load in wide data 
+load(paste0("~/PRiSMAv2Data/", site, "/", UploadDate,"/data/", UploadDate, "_wide.Rdata", sep = "")) 
+#*****************************************************************************
+#*import data dictionary 
+#*****************************************************************************
+#* create excel work book 
+# varNames_sheet <- read_excel("~/PRiSMAv2Data/PRISMA-Data-Queries-GW/R/PRiSMA-MNH-Data-Dictionary-Repository-V.2.3-MAR272023.xlsx",
+#                              sheet = "Data Dictionary", col_types = "character")
+varNames_sheet <- read_excel("~/PRiSMAv2Data/PRISMA-Data-Queries-GW/R/PRISMA-MNH-Data-Dictionary-Repository-V.2.4-NOV202023_queries.xlsx",
+                             sheet = "Data Dictionary")
+
+
 varNames_sheet <- varNames_sheet %>% dplyr::select(Form, `Variable Name`, `Response Options`, `Query Category`,`Value`, `Field Type (Date, Time, Number, Text)`, `Minimum Value`, `Maximum Value`)
 varNames_sheet$`Variable Name` = toupper(varNames_sheet$`Variable Name`)
 
@@ -350,7 +387,7 @@ if (nrow(ConRangeQuery_Export)>=1){
 #* Out of range dates
 #*****************************************************************************
 # extract the date variables from the data dictionary
-## also remove variables we would expect very early or futuristic days such as mothers date of birth and estimated due date (EDD dates will be checked in 07_EDD_query)
+  ## also remove variables we would expect very early or futuristic days such as mothers date of birth and estimated due date (EDD dates will be checked in 07_EDD_query)
 requested_varNames_vec <- varNames_sheet %>% filter(`Field Type (Date, Time, Number, Text)` == "Date") %>% 
   filter(!varname %in% c("BRTHDAT", "US_EDD_BRTHDAT_FTS1", "US_EDD_BRTHDAT_FTS2", "US_EDD_BRTHDAT_FTS3", "US_EDD_BRTHDAT_FTS4", 
                          "ESTIMATED_EDD_SCDAT", "CAL_EDD_BRTHDAT_FTS1", "CAL_EDD_BRTHDAT_FTS2", "CAL_EDD_BRTHDAT_FTS3", "CAL_EDD_BRTHDAT_FTS4")) %>% 
@@ -388,14 +425,14 @@ names(DateRangeQuery_Export) = c("ScrnID","MomID", "PregID","InfantID","VisitTyp
 if (nrow(DateRangeQuery_Export)>=1){
   
   DateRangeQuery_Export = cbind(QueryID = NA, 
-                                UploadDate = UploadDate, 
-                                #MomID = "NA", PregID = "NA",
-                                #VisitDate = "NA", 
-                                DateRangeQuery_Export, 
-                                #`Variable Name` = "NA",
-                                FieldType = "Date", 
-                                EditType = "Date Out of Range", 
-                                DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+                               UploadDate = UploadDate, 
+                               #MomID = "NA", PregID = "NA",
+                               #VisitDate = "NA", 
+                               DateRangeQuery_Export, 
+                               #`Variable Name` = "NA",
+                               FieldType = "Date", 
+                               EditType = "Date Out of Range", 
+                               DateEditReported = format(Sys.time(), "%Y-%m-%d"))
 }
 
 if (nrow(DateRangeQuery_Export)>=1){
@@ -871,6 +908,137 @@ if (site_mnh25=="India"){
 if (nrow(M25_OutRangeNumericQuery_Export)>=1){
   M25_OutRangeNumericQuery_Export$`Variable Value` = as.character(M25_OutRangeNumericQuery_Export$`Variable Value`)
 }
+
+#*****************************************************************************
+#* Blood Pressure Measurement
+#* Goal 1: To compare the difference between bps to ensure that Systolic bp is ALWAYS higher than Diastolic bp: Query if negative
+#* Goal 2: Calculate PP: Sys - Dia BP. Ranges should be between +40 to +60; Query less than 1/8 systolic bp or greater than 100.
+#*****************************************************************************
+# Check if mnh10 exists and apply mutation if it does
+if (exists("mnh10")) {
+  mnh10 <- mnh10 %>%
+    mutate(TYPE_VISIT = 6, VisitDate = VISIT_OBSSTDAT)
+}
+
+# Check if mnh09 exists and apply mutation if it does
+if (exists("mnh09")) {
+  mnh09 <- mnh09 %>%
+    mutate(TYPE_VISIT = 6, VisitDate = MAT_LD_OHOSTDAT)
+}
+
+# Check if mnh06 exists and apply mutation if it does
+if (exists("mnh06")) {
+  mnh06 <- mnh06 %>%
+    mutate(VisitDate = DIAG_VSDAT)
+}
+
+# Define a function to perform the analysis on each data frame
+analyze_blood_pressure <- function(df_name, suffix) {
+  # Check if the data frame exists in the global environment
+  if (!exists(df_name)) {
+    return(NULL)
+  }
+
+  # Retrieve the data frame from the global environment
+  df <- get(df_name)
+
+  # Define the variable suffix
+  suffix <- toupper(suffix)
+
+  # Filter and process data based on the given suffix
+  blood_pressure_df <- df %>%
+    filter(get(paste0("MAT_VISIT_", suffix)) %in% c(1, 2) & get(paste0("MAT_VITAL_", suffix)) == 1 & get("BP_VSSTAT") == 1) %>%
+    mutate(SCRNID = NA, INFANTID = NA, Form = toupper (df_name)) %>%
+    select(SCRNID, MOMID, PREGID, INFANTID, VisitDate, VisitType = TYPE_VISIT, Form,
+           starts_with(paste0("BP_SYS")), starts_with(paste0("BP_DIA"))) %>%
+    mutate(across(starts_with(paste0("BP_SYS")) | starts_with(paste0("BP_DIA")), as.numeric)) %>%
+    mutate(across(starts_with(paste0("BP_SYS")) | starts_with(paste0("BP_DIA")), ~ ifelse(. %in% c(-7, -5), NA, .)))
+
+  # Initialize an empty list to store results
+  QueryList <- list()
+
+  # Loop through the measurements
+  for (i in 1:3) {
+    # Define column names
+    sys_col <- paste0("BP_SYS_VSORRES_", i)
+    dia_col <- paste0("BP_DIA_VSORRES_", i)
+
+    # Compute the difference
+    Query <- blood_pressure_df %>%
+      mutate(
+        PulsePressure = ifelse(!is.na(.[[sys_col]]) & !is.na(.[[dia_col]]), (.[[sys_col]] - .[[dia_col]]), NA),
+        Threshold = ifelse(!is.na(.[[sys_col]]), .[[sys_col]] * 0.125, NA),
+        EditType = ifelse(is.na(PulsePressure) | is.na(Threshold), "N/A",
+                          ifelse(PulsePressure == 0, paste0("Systolic BP is equal to Diastolic BP"),
+                              ifelse(PulsePressure < 0, paste0("Systolic BP is less than Diastolic BP"),
+                                 ifelse(PulsePressure < Threshold, paste0("Pulse Pressure (Narrow) Out of Range"),
+                                        ifelse(PulsePressure > 100, "Pulse Pressure (Wide) Out of Range", "Within Range"))))),
+        Variable_Name = paste0("Constructed Diff ", sys_col, "-", dia_col),
+        Variable_Value = PulsePressure) %>%
+      filter(EditType != "N/A" & EditType != "Within Range") %>%
+      mutate_all(as.character)
+
+    # Store results in lists
+    QueryList[[i]] <- Query
+  }
+
+  # Combine lists to form a data frame
+  blood_pressure_query <- as.data.frame(do.call(rbind, QueryList))
+
+  # Select relevant columns for blood_pressure_query_export
+  blood_pressure_query_export <- blood_pressure_query %>%
+    select(SCRNID, MOMID, PREGID, INFANTID, VisitType, VisitDate, Form, Variable_Name, Variable_Value, EditType)
+
+  names(blood_pressure_query_export) <- c("ScrnID", "MomID", "PregID", "InfantID", "VisitType", "VisitDate", "Form", "Variable Name", "Variable Value", "EditType" )
+
+  # Add additional columns
+  if (nrow(blood_pressure_query_export) >= 1) {
+    BloodPressureQuery_Export <- cbind(QueryID = NA, UploadDate = UploadDate, blood_pressure_query_export,
+                                       FieldType = "Number", DateEditReported = format(Sys.time(), "%Y-%m-%d"))
+
+    BloodPressureQuery_Export$`Variable Value` <- as.character(BloodPressureQuery_Export$`Variable Value`)
+
+    return(BloodPressureQuery_Export)
+  } else {
+    return(NULL)
+  }
+}
+
+# List of data frame names and corresponding suffixes
+df_names <- c("mnh06", "mnh09", "mnh10")
+suffixes <- c("MNH06", "MNH09", "MNH10")
+
+# Initialize a list to store all results
+all_results <- list()
+
+# Iterate over each data frame name and corresponding suffix
+for (i in seq_along(df_names)) {
+  df_name <- df_names[i]
+  suffix <- suffixes[i]
+
+  # Call the function with the data frame name and suffix
+  result <- analyze_blood_pressure(df_name, suffix)
+
+  # If there is a result, store it in the list
+  if (!is.null(result)) {
+    all_results[[df_name]] <- result
+  }
+}
+
+# Combine all results into a single data frame if there are results
+if (length(all_results) > 0) {
+  combined_results <- do.call(rbind, all_results)
+} else {
+  combined_results <- NULL
+}
+
+# Print or return the combined results
+
+if (nrow(combined_results)>=1){
+  BloodPressureQuery_Export <- as.data.frame(combined_results)
+
+}
+
 #*****************************************************************************
 #* Remove all emply dataframe 
 #* this means that the only data frames left are the ones with true queries   
@@ -887,14 +1055,11 @@ empty <- unlist(eapply(.GlobalEnv, isEmpty))
 rm(list = names(empty)[empty])
 
 ## export 
-## bind forms
-out <- rbindlist(mget(ls(pattern = "*Query_Export$")))
+## bind forms 
+out <- rbindlist(mget(ls(pattern = "*Query_Export$")), use.names = TRUE) 
 
 # combine form/edit type var -- will have to do for each of forms that have duplicates 
 out <- add_column(out, Form_Edit_Type=paste(out$Form,"_",out$EditType))
-
-# add visit type column 
-out = add_column(out, VisitType = NA , .after = "InfantID")
 
 # confirm date class 
 out <- out %>% 
@@ -908,98 +1073,12 @@ OutRangeCheck_query <- out
 
 OutRangeCheck_query <- OutRangeCheck_query %>% 
   mutate(QueryID = ifelse(EditType == "Invalid Response Option", paste0(Form, "_", VisitDate, "_",MomID, "_",`Variable Name`, "_", `Variable Value`, "_", "05"), 
-                          ifelse(EditType == "Out of Range", paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"), NA)
-  ))
+                          ifelse(EditType == "Out of Range", paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"),
+                                 ifelse(EditType == "Date Out of Range" & !is.na(MomID), paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"),     
+                                    ifelse(EditType == "Date Out of Range" & is.na(MomID), paste0(Form, "_", VisitDate, "_",ScrnID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"), 
+                                            ifelse ( grepl("pressure|BP", EditType, ignore.case = TRUE),  paste0(Form, "_", VisitDate, "_",MomID, "_", `Variable Name`, "_", `Variable Value`, "_", "09"), NA) 
+  )))))
 
 # export out of range queries
 save(OutRangeCheck_query, file = paste0(maindir,"/queries/OutRangeCheck_query.rda"))
-
-## the follow tables show the % of responses that were default values that were NOT already included on the answer option
-# example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
-# if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
-
-# view(invalid_response_default_value)
-# view(out_range_default_value_continuous)
-
-
-## the follow tables show the % of responses that were default values that were NOT already included on the answer option
-# example: Q1 has response options of 1,0,88 but a 77 was recorded -- this table will report what were the % of responses that were 77
-# if these values are high, then there might be a skip pattern issue or the site has implemented their own default value system 
-
-
-#This is to extract the Create more information for the High frequency Variables categorical and to include the response, count and expected response range 
-# Step 0: Get the real queries out
-
-invalid_response_high_freq_query <- invalid_response_categorical
-
-invalid_response_high_freq_query_filtered <- invalid_response_high_freq_query %>%
-  filter(editmessage == "Invalid Response Option")
-
-invalid_response_high_freq_query_filter <- invalid_response_high_freq_query_filtered %>%
-  filter(!(response %in% c("77", "55", "88", "99")))
-
-
-#Step One: Get the count and group by response
-summary_numeric_1 <- invalid_response_high_freq_query_filter %>%  group_by(form, varname, response, `Query Category`) %>%
-  summarize(count = n())
-
-#Step Two: Get the common response range
-common_data <- invalid_response_high_freq_query_filter %>%
-  group_by(response, response_range, form, varname) %>%
-  summarize(response_range = unique(response_range))
-
-#Join the two data frames
-OutRange_Invalid_Query_Summary <- inner_join(summary_numeric_1, common_data, by = c("form", "varname", "response")) %>% 
-  cbind(min = "*", max = "*", DefaultValue = "77, Not Applicable; 55, Missing Data Point", EditType ="Invalid Response") 
-
-OutRange_Invalid_Query_Summary <- OutRange_Invalid_Query_Summary %>%
-  mutate(Recommendations = ifelse(response %in% c("-7", "N/A", "n/a", "na", "NA", "Na"),
-                                  "Change default value to 77 if not applicable",
-                                  ifelse(response %in% c("-5"),
-                                         "Change default value to 55 if data point is missing",
-                                         "Input valid data within the Response Range Options"))) 
-
-OutRange_Invalid_Query_Summary$Recommendations = as.character(OutRange_Invalid_Query_Summary$Recommendations)
-#For Continuous Variables
-#Step One: Get the count and group by response
-
-summary_cont_1 <- forms_con_query %>% 
-  group_by(varname, form, response) %>% 
-  summarize(count = n())
-
-
-#Step Two: Get the common response range
-common_data_cont <- forms_con_merged %>%
-  group_by(min, max, response, form, varname) %>%
-  summarize(min = unique(min)) %>%
-  cbind(DefaultValue = " -5, Missing Data point; -7,Not Applicable; -9,Dont Know -6,Refused to Answer")
-
-
-# Join the two data frames
-OutRange_Cont_Query_Summary <- inner_join(summary_cont_1, common_data_cont, by = 
-                                            c("form", "varname", "response")) %>% cbind(response_range = "*") %>%  
-  subset((response < min) |  (response > max))
-
-
-# Convert response column in OutRange_Cont_Query_Summary to character
-OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary %>% 
-  mutate(response = as.character(response)) %>% 
-  mutate(min = as.character(min))  %>%  
-  mutate(max = as.character(max)) %>% 
-  add_column (EditType="Out of Range")
-
-OutRange_Cont_Query_Summary_1 <- OutRange_Cont_Query_Summary_1 %>%
-  mutate(Recommendations = ifelse(response == 77, 
-                                  "Change default value to -7, if not applicable", 
-                                  "Input valid data within the minimum and max range" ))
-
-
-# Inner join the two data frames
-High_Freq_Invalid_Query <- full_join(OutRange_Cont_Query_Summary_1, OutRange_Invalid_Query_Summary) %>%  filter(count > 40)
-
-High_Freq_Invalid_Query <- add_column(High_Freq_Invalid_Query, 'Form and Edit Type'=paste
-                                      (High_Freq_Invalid_Query$form, "_", High_Freq_Invalid_Query$`varname`,"_", 
-                                        High_Freq_Invalid_Query$EditType, sep = ""))
-
-save(High_Freq_Invalid_Query, file = paste0(maindir,"/queries/High_Freq_Invalid_Query.rda"))
 
